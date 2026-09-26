@@ -52,6 +52,11 @@ from src.streaming import (
     refresh_device_snapshot,
     snapshot_for_device,
 )
+from src.live_bridge import (
+    extract_bearer_or_header,
+    live_bridge_configured,
+    token_matches,
+)
 from src.worker import ensure_worker, run_check_now, run_due_cycle, worker_status
 
 logging.basicConfig(
@@ -262,6 +267,45 @@ def api_camera_live_frame(device_id: str):
     data, err = capture_live_frame(device_id)
     if not data:
         return Response(status=503)
+    return Response(
+        data,
+        mimetype="image/jpeg",
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+            "Pragma": "no-cache",
+        },
+    )
+
+
+@app.get("/bridge/v1/health")
+def bridge_health():
+    """Public health for Cloudflare Tunnel checks (no camera access)."""
+    return jsonify(
+        {
+            "ok": True,
+            "bridge": True,
+            "tokenConfigured": live_bridge_configured(),
+        }
+    )
+
+
+@app.get("/bridge/v1/live/<device_id>.jpg")
+def bridge_live_frame(device_id: str):
+    """Token-protected live JPEG for the Vercel-hosted dashboard via Cloudflare Tunnel."""
+    if not live_bridge_configured():
+        return jsonify({"ok": False, "error": "LIVE_BRIDGE_TOKEN not set on site"}), 503
+    provided = extract_bearer_or_header(
+        request.headers.get("Authorization"),
+        request.headers.get("X-Live-Bridge-Token"),
+    )
+    if not token_matches(provided):
+        return Response("Unauthorized", status=401)
+    device = get_device(device_id)
+    if not device:
+        return Response(status=404)
+    data, err = capture_live_frame(device_id)
+    if not data:
+        return Response(err or "live frame unavailable", status=503)
     return Response(
         data,
         mimetype="image/jpeg",

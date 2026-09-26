@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from flask import Flask, Response, jsonify, redirect, render_template, request
+import requests
 
 from src.bunny_storage import (
     bunny_readable,
@@ -17,6 +18,12 @@ from src.bunny_storage import (
     download_bytes,
     download_json,
     is_bunny_path,
+)
+from src.live_bridge import (
+    bridge_live_path,
+    cloud_live_bridge_ready,
+    live_bridge_token,
+    live_bridge_url,
 )
 
 log = logging.getLogger("camera-uptime.cloud")
@@ -126,6 +133,7 @@ def camera_status_page():
         },
         "remoteMode": True,
         "publishedAt": published,
+        "liveBridgeEnabled": cloud_live_bridge_ready(),
     }
     return render_template(
         "camera_status.html",
@@ -136,6 +144,7 @@ def camera_status_page():
         boot=boot,
         devices=[],
         remote_mode=True,
+        live_bridge_enabled=cloud_live_bridge_ready(),
         published_at=published,
     )
 
@@ -145,6 +154,7 @@ def camera_status_page():
 def api_camera_status():
     payload = _load_status() or _empty_payload()
     payload["remoteMode"] = True
+    payload["liveBridgeEnabled"] = cloud_live_bridge_ready()
     if not payload.get("updatedAt"):
         payload["updatedAt"] = payload.get("publishedAt")
     return jsonify(payload)
@@ -236,6 +246,47 @@ def api_camera_snapshot(device_id: str):
     )
 
 
+@app.get("/api/cameras/<device_id>/live.jpg")
+@_auth_required
+def api_camera_live_frame(device_id: str):
+    """Proxy one live JPEG from the on-site bridge (Cloudflare Tunnel)."""
+    if not cloud_live_bridge_ready():
+        return Response("Live bridge not configured", status=503)
+    url = f"{live_bridge_url()}{bridge_live_path(device_id)}"
+    try:
+        upstream = requests.get(
+            url,
+            headers={
+                "Authorization": f"Bearer {live_bridge_token()}",
+                "X-Live-Bridge-Token": live_bridge_token(),
+            },
+            timeout=45,
+        )
+    except requests.RequestException as exc:
+        log.warning("Live bridge request failed for %s: %s", device_id, exc)
+        return Response("Live bridge unreachable", status=503)
+    if upstream.status_code != 200 or not upstream.content:
+        return Response(
+            upstream.content or b"live frame unavailable",
+            status=upstream.status_code if upstream.status_code >= 400 else 503,
+            mimetype=upstream.headers.get("Content-Type", "text/plain"),
+        )
+    return Response(
+        upstream.content,
+        mimetype="image/jpeg",
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+            "Pragma": "no-cache",
+        },
+    )
+
+
 @app.get("/healthz")
 def healthz():
-    return jsonify({"ok": True, "bunny": bunny_readable()})
+    return jsonify(
+        {
+            "ok": True,
+            "bunny": bunny_readable(),
+            "liveBridge": cloud_live_bridge_ready(),
+        }
+    )

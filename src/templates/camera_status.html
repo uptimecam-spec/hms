@@ -415,6 +415,9 @@
           <button class="primary" id="pingOne" type="button">Ping now</button>
           <button class="ghost" id="retryPreview" type="button">Retry Preview</button>
           <a class="ghost" id="historyLink" href="#">Full history</a>
+          {% elif live_bridge_enabled or (boot is defined and boot.liveBridgeEnabled) %}
+          <button class="ghost" id="checkLive" type="button">Check Live</button>
+          <span class="ghost" style="opacity:.7;cursor:default;pointer-events:none">Ping / retry need on-site LAN</span>
           {% else %}
           <span class="ghost" style="opacity:.7;cursor:default;pointer-events:none">LAN actions unavailable remotely</span>
           {% endif %}
@@ -431,6 +434,7 @@
   <script>
     const boot = JSON.parse(document.getElementById("boot").textContent);
     const remoteMode = !!(boot.remoteMode {% if remote_mode %}|| true{% endif %});
+    const liveBridgeEnabled = !!(boot.liveBridgeEnabled {% if live_bridge_enabled %}|| true{% endif %});
     let cameras = boot.cameras || [];
     let nvrs = boot.nvrs || [];
     let filter = "";
