@@ -1,0 +1,67 @@
+﻿IP Address,Port,Remote Channel,CAM NAME,Manufacturer,User Name,Password,Encryption,Link Info
+192.168.7.80,37777,1,8 Gate 03 Outside,Private,admin,,0,1
+192.168.5.22,80,1,IPC,ONVIF,admin,,0,1
+192.168.7.201,37777,1,3 Gr Flr Sidy,Private,admin,,0,1
+192.168.5.216,25001,1,4 Gr Flr Outside 01,Private,admin,,0,1
+192.168.5.220,25001,1,5 Gr Flr Outside 02,Private,admin,,0,1
+192.168.5.218,25001,1,6 Gr Flr Outside 03,Private,admin,,0,1
+192.168.5.219,25001,1,7 Gr Flr Outside 04,Private,admin,,0,1
+192.168.5.209,25001,1,8 Gr Flr Outside 05,Private,admin,,0,1
+192.168.5.217,25001,1,9 Gr Flr Outside 06,Private,admin,,0,1
+192.168.5.215,25001,1,10 Gr Flr Outside 07,Private,admin,,0,1
+192.168.5.212,25001,1,11  Gr Flr Outside 08,Private,admin,,0,1
+192.168.5.210,25001,1,12 Gr Flr Dining Hall 01,Private,admin,,0,1
+192.168.5.213,25001,1,13 Gr Flr Dining Hall 02,Private,admin,,0,1
+192.168.5.211,80,1,14 Gr Flr Dining Hall 03,ONVIF,admin,,0,1
+192.168.5.214,25001,1,15 Gr Flr Dining Hall 04,Private,admin,,0,1
+192.168.7.209,37777,1,16 First Flr Gallery 01,Private,admin,,0,1
+192.168.7.219,37777,1,17 First Flr Gallery 02,Private,admin,,0,1
+192.168.7.225,37777,1,18 First Flr Gallery 03,Private,admin,,0,1
+192.168.7.206,37777,1,19 First Flr Gallery 04,Private,admin,,0,1
+192.168.7.222,37777,1,20 First Flr Gallery 05,Private,admin,,0,1
+192.168.7.210,37777,1,21 First Flr Gallery 06,Private,admin,,0,1
+192.168.7.207,37777,1,22 First Flr Gallery 07,Private,admin,,0,1
+192.168.7.221,37777,1,23 First Flr Gallery 08,Private,admin,,0,1
+192.168.7.217,25001,1,24 First Flr Dining Hall 01,Private,admin,,0,1
+192.168.7.202,37777,1,25 First Flr Dining Hall 02,Private,admin,,0,1
+192.168.7.220,37777,1,26 First Flr Dining Hall 03,Private,admin,,0,1
+192.168.7.213,37777,1,27 First Flr Dining Hall 04,Private,admin,,0,1
+192.168.7.205,80,1,28 Sec Flr Gallery 01,ONVIF,admin,,0,1
+192.168.7.216,80,1,29 Sec Flr Gallery 02,ONVIF,admin,,0,1
+192.168.7.212,80,1,30 Sec Flr Gallery 03,ONVIF,admin,,0,1
+192.168.7.226,37777,1,31 Sec Flr Gallery 04,Private,admin,,0,1
+192.168.7.224,37777,1,32 Sec Flr Gallery 05,Private,admin,,0,1
+192.168.7.211,80,1,33 Sec Flr Gallery 06,ONVIF,admin,,0,1
+192.168.7.204,37777,1,34 Sec Flr Gallery 07,Private,admin,,0,1
+192.168.7.223,80,1,35 Sec Flr Gallery 08,ONVIF,admin,,0,1
+192.168.7.228,25001,1,36 Sec Flr Store 01,Private,admin,,0,1
+192.168.7.215,25001,1,37 Sec Flr Strorel 02,Private,admin,,0,1
+192.168.7.238,37777,1,38 Sec Flr Store 03,Private,admin,,0,1
+192.168.7.236,37777,1,39 Sec Flr Store 04,Private,admin,,0,1
+192.168.7.237,37777,1,40 Sec Flr Store 05,Private,admin,,0,1
+192.168.7.214,25001,1,41 Sec Flr Store 06,Private,admin,,0,1
+192.168.7.227,37777,1,Sec Flr Hall 04,Private,admin,,0,1
+192.168.6.108,25001,1,43 Godown Outside 01,Private,admin,,0,1
+192.168.6.94,25001,1,44  Godown Outside 02,Private,admin,,0,1
+192.168.6.96,25001,1,45 Godown Outside 03,Private,admin,,0,1
+192.168.6.109,25001,1,46 Godown Outside 04,Private,admin,,0,1
+192.168.6.105,25001,1,47 Godown Outside 05,Private,admin,,0,1
+192.168.6.92,25001,1,48 Godown Outside 06,Private,admin,,0,1
+192.168.6.97,80,1,46,ONVIF,admin,,0,1
+192.168.6.101,25001,1,50 Godown Outside 08,Private,admin,,0,1
+192.168.4.127,80,1,9,ONVIF,admin,,0,1
+192.168.6.91,25001,1,52 Gr Flr 01,Private,admin,,0,1
+192.168.6.107,25001,1,53 Gr Flr 02,Private,admin,,0,1
+192.168.4.120,80,1,3,ONVIF,admin,,0,1
+192.168.4.122,80,1,5,ONVIF,admin,,0,1
+192.168.6.93,25001,1,56 Gr Flr 05,Private,admin,,0,1
+192.168.6.102,25001,1,57 Gr Flr 06,Private,admin,,0,1
+192.168.6.95,80,1,52,ONVIF,admin,,0,1
+192.168.6.106,25001,1,59 First Flr Sidy,Private,admin,,0,1
+192.168.6.98,25001,1,60 First Flr 01,Private,admin,,0,1
+192.168.6.104,25001,1,61 First Flr 02,Private,admin,,0,1
+192.168.6.103,80,1,55 First Flr Hall 02,ONVIF,admin,,0,1
+192.168.4.126,80,1,CP IP Cam,ONVIF,admin,,0,1
+192.168.4.121,80,1,4,ONVIF,admin,,0,1
+,,,,,,,,
+"Note: Address refers to IP address, domain name or RTSP address. Port value ranges from 1 to 65535. Single-channel IPC is 1 when remote channel No. is larger than 1; The manufacturers include:Private,Panasonic,Sony,Samsung,Axis,Pelco,Arecont,ONVIF,Canon",,,,,,,,

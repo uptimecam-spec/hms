@@ -1,0 +1,113 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ device.deviceName }} — Health History</title>
+  <style>
+    :root {
+      --bg:#07090d; --card:#121820; --border:rgba(255,255,255,.08); --text:#eef3f8;
+      --muted:#8b97a8; --ok:#3ee0a0; --bad:#ff5d73; --preview:#e8c547; --accent:#7aa7ff;
+    }
+    body { margin:0; font-family:"Segoe UI",system-ui,sans-serif; background:var(--bg); color:var(--text); }
+    header { padding:14px 20px; border-bottom:1px solid var(--border); background:#10151c; }
+    a { color:var(--accent); text-decoration:none; }
+    main { padding:18px; max-width:900px; margin:0 auto; }
+    .meta { color:var(--muted); font-size:13px; }
+    .day { margin:18px 0 8px; font-size:13px; font-weight:700; color:var(--muted); letter-spacing:.04em; text-transform:uppercase; }
+    .item {
+      display:grid; grid-template-columns: 88px 1fr auto; gap:12px; align-items:start;
+      background:var(--card); border:1px solid var(--border); border-radius:12px;
+      padding:12px; margin-bottom:8px;
+    }
+    .when { font-variant-numeric:tabular-nums; font-weight:650; }
+    .kind { font-size:11px; color:var(--muted); margin-top:4px; }
+    .badge {
+      display:inline-block; font-size:10px; font-weight:750; padding:2px 7px; border-radius:999px; margin-bottom:6px;
+    }
+    .badge.online { background:var(--ok); color:#073222; }
+    .badge.offline { background:var(--bad); color:#3a0d14; }
+    .badge.preview { background:var(--preview); color:#2c2308; }
+    .facts { font-size:12px; color:#c5ced8; line-height:1.45; }
+    .thumb {
+      width:120px; height:72px; border-radius:8px; overflow:hidden; background:#0a0e13;
+      border:1px solid var(--border); display:flex; align-items:center; justify-content:center;
+    }
+    .thumb img { width:100%; height:100%; object-fit:cover; display:block; cursor:pointer; }
+    .thumb span { font-size:10px; color:var(--muted); text-align:center; padding:6px; }
+    .overlay {
+      position:fixed; inset:0; background:rgba(0,0,0,.72); display:none; align-items:center; justify-content:center; z-index:40; padding:16px;
+    }
+    .overlay.open { display:flex; }
+    .overlay img { max-width:min(960px,100%); max-height:85vh; border-radius:10px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div><a href="/camera-status">← Camera Monitor</a> · <a href="/devices">Devices</a></div>
+    <h1 style="margin:8px 0 0;font-size:1.15rem;">{{ device.deviceName }}</h1>
+    <div class="meta">
+      {{ device.deviceId }} · {{ device.ipAddress }} · NVR {{ device.nvrId or "—" }} · {{ device.status }}
+    </div>
+  </header>
+  <main>
+    <h2 style="font-size:1rem;margin:0 0 12px;">Health Check History</h2>
+    {% set ns = namespace(last_day='') %}
+    {% for c in history.items %}
+      {% set day = c.checkedAt[:10] if c.checkedAt else '' %}
+      {% if day and day != ns.last_day %}
+        {% set ns.last_day = day %}
+        <div class="day" data-utc-day="{{ day }}">{{ day }}</div>
+      {% endif %}
+      <article class="item">
+        <div>
+          <div class="when" data-utc="{{ c.checkedAt }}" data-fmt="time">{{ c.checkedAt }}</div>
+          <div class="kind">
+            {% if c.checkKind == 'MANDATORY' %}Scheduled Hourly Check
+            {% elif c.checkKind == 'RANDOM' %}Random Health Check
+            {% else %}{{ c.checkKindLabel }}{% endif %}
+          </div>
+        </div>
+        <div>
+          {% if c.overallStatus == 'ONLINE' %}
+            <span class="badge online">Online</span>
+          {% elif c.overallStatus == 'OFFLINE' %}
+            <span class="badge offline">Offline</span>
+          {% else %}
+            <span class="badge preview">Preview Error</span>
+          {% endif %}
+          <div class="facts">
+            Ping: {{ "Successful" if c.pingSuccess else "Failed" }}
+            {% if c.responseTimeMs is not none %} · {{ c.responseTimeMs }} ms{% endif %}<br/>
+            Preview: {{ c.previewStatus }}
+            {% if c.error %}<br/>Error: {{ c.error }}{% endif %}
+            {% if c.previewError %}<br/>Preview: {{ c.previewError }}{% endif %}
+          </div>
+        </div>
+        <div class="thumb">
+          {% if c.hasImage %}
+            <img src="/api/cameras/{{ device.deviceId }}/health-checks/{{ c.id }}/image.jpg" alt="Check image" data-full />
+          {% else %}
+            <span>No image<br/>recorded</span>
+          {% endif %}
+        </div>
+      </article>
+    {% else %}
+      <div class="meta">No health-check history yet. Run the worker: <code>python -m src.worker</code></div>
+    {% endfor %}
+  </main>
+  <div class="overlay" id="overlay"><img id="full" alt="" /></div>
+  <script src="{{ url_for('static', filename='time.js') }}"></script>
+  <script>
+    document.querySelectorAll("[data-full]").forEach(img => {
+      img.addEventListener("click", () => {
+        document.getElementById("full").src = img.src;
+        document.getElementById("overlay").classList.add("open");
+      });
+    });
+    document.getElementById("overlay").addEventListener("click", () => {
+      document.getElementById("overlay").classList.remove("open");
+    });
+  </script>
+</body>
+</html>

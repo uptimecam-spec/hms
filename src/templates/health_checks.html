@@ -1,0 +1,82 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Health Checks</title>
+  <style>
+    :root { --bg:#0f1419; --card:#1a2332; --border:#2a3544; --text:#e7ecf3; --muted:#8b9bb4; --ok:#3dd68c; --bad:#ff6b6b; --accent:#5b9cff; --warn:#f0c14b; }
+    body { margin:0; font-family:system-ui,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+    header { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:14px 20px; border-bottom:1px solid var(--border); background:#121821; flex-wrap:wrap; }
+    a { color:var(--accent); text-decoration:none; }
+    h1 { margin:0; font-size:1.1rem; }
+    main { padding:20px; max-width:1200px; margin:0 auto; }
+    table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+    th,td { padding:9px 11px; border-bottom:1px solid var(--border); text-align:left; font-size:0.85rem; }
+    th { color:var(--muted); background:#121821; }
+    .ok { color:var(--ok); } .bad { color:var(--bad); }
+    .muted { color:var(--muted); font-size:0.85rem; }
+    code { font-family:Consolas,monospace; }
+    .banner { margin-bottom:14px; padding:10px 12px; border-radius:8px; background:#2a2416; border:1px solid #4a3d1e; color:#e8d39a; }
+    .kind { font-size:0.75rem; font-weight:700; padding:2px 6px; border-radius:6px; background:#243044; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Health Check History</h1>
+      <div class="muted">
+        Worker heartbeat <span data-utc="{{ worker.heartbeat or '' }}">{{ worker.heartbeat or "—" }}</span> ·
+        mandatory every {{ worker.mandatory_interval_sec }}s ·
+        open warnings {{ worker.open_warnings }}
+      </div>
+    </div>
+    <div>
+      <a href="/">Dashboard</a> ·
+      <a href="/devices">Devices</a> ·
+      <a href="/warnings">Warnings</a>
+    </div>
+  </header>
+  <main>
+    {% if warnings %}
+    <div class="banner">
+      {{ warnings|length }} open monitoring warning(s) — <a href="/warnings">view</a>
+      {% for w in warnings[:3] %}<div class="muted" style="margin-top:4px;">{{ w.warningType }}: {{ w.message }}</div>{% endfor %}
+    </div>
+    {% endif %}
+    <table>
+      <thead>
+        <tr>
+          <th>Device</th>
+          <th>Kind</th>
+          <th>Type</th>
+          <th>Checked at</th>
+          <th>Success</th>
+          <th>RTT</th>
+          <th>Loss</th>
+          <th>Result</th>
+          <th>Error</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in checks %}
+        <tr>
+          <td><a href="/devices/{{ c.deviceId }}/history"><code>{{ c.deviceId }}</code></a></td>
+          <td><span class="kind">{{ c.checkKind or "MANDATORY" }}</span></td>
+          <td>{{ c.checkType }}</td>
+          <td><code data-utc="{{ c.checkedAt }}">{{ c.checkedAt }}</code></td>
+          <td class="{{ 'ok' if c.success else 'bad' }}">{{ "SUCCESS" if c.success else "FAIL" }}</td>
+          <td>{% if c.responseTime is not none %}{{ c.responseTime }} ms{% else %}—{% endif %}</td>
+          <td>{% if c.packetLoss is not none %}{{ c.packetLoss }}%{% else %}—{% endif %}</td>
+          <td>{{ c.result or "—" }}</td>
+          <td class="muted">{{ c.error or "" }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="muted">No health checks yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </main>
+  <script src="{{ url_for('static', filename='time.js') }}"></script>
+</body>
+</html>

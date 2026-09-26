@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Live Camera Wall</title>
+  <style>
+    :root { --bg:#0a0e14; --card:#141b26; --border:#2a3544; --text:#e7ecf3; --muted:#8b9bb4; --ok:#3dd68c; --bad:#ff6b6b; --accent:#5b9cff; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, Segoe UI, sans-serif; background:var(--bg); color:var(--text); }
+    header { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid var(--border); background:#0f1419; flex-wrap:wrap; position:sticky; top:0; z-index:10; }
+    a { color:var(--accent); text-decoration:none; }
+    h1 { margin:0; font-size:1rem; }
+    .btn { background:var(--accent); color:#041018; border:0; border-radius:8px; padding:7px 11px; font-weight:600; cursor:pointer; font-size:0.82rem; }
+    .btn.secondary { background:#2a3544; color:var(--text); }
+    .toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:end; padding:10px 16px; border-bottom:1px solid var(--border); background:#0f1419; position:sticky; top:52px; z-index:9; }
+    .toolbar label { display:flex; flex-direction:column; gap:3px; font-size:0.72rem; color:var(--muted); }
+    .toolbar input, .toolbar select { background:#121821; border:1px solid var(--border); color:var(--text); border-radius:8px; padding:6px 8px; font-size:0.82rem; }
+    .meta { color:var(--muted); font-size:0.8rem; margin-left:auto; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:10px; padding:12px 16px 24px; }
+    .tile { background:var(--card); border:1px solid var(--border); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; }
+    .tile.hidden { display:none; }
+    .tile-head { display:flex; justify-content:space-between; gap:8px; padding:8px 10px; font-size:0.78rem; border-bottom:1px solid var(--border); }
+    .tile-head strong { font-size:0.82rem; }
+    .badge { padding:2px 7px; border-radius:999px; font-size:0.68rem; font-weight:700; }
+    .ONLINE { background:rgba(61,214,140,.15); color:var(--ok); }
+    .OFFLINE { background:rgba(255,107,107,.15); color:var(--bad); }
+    .UNKNOWN,.WARNING { background:rgba(240,193,75,.15); color:#f0c14b; }
+    .viewport { aspect-ratio:16/10; background:#000; position:relative; }
+    .viewport img { width:100%; height:100%; object-fit:contain; display:block; }
+    .placeholder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:0.78rem; padding:8px; text-align:center; }
+    .tile-foot { padding:6px 10px 8px; font-size:0.72rem; color:var(--muted); display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+    .tile-foot code { font-size:0.68rem; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .tile-foot button { margin-left:auto; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Live wall — all cameras</h1>
+      <div class="meta">{{ devices|length }} stored pictures</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a class="btn secondary" href="/camera-status">Status monitoring</a>
+      <a class="btn secondary" href="/cameras">Camera table</a>
+      <a class="btn secondary" href="/">Dashboard</a>
+      <span class="meta">Stored stills</span>
+    </div>
+  </header>
+  <div class="toolbar">
+    <label>Search <input id="q" type="search" placeholder="Name or IP" /></label>
+    <label>Status
+      <select id="status">
+        <option value="">All</option>
+        <option value="ONLINE">Online</option>
+        <option value="OFFLINE">Offline</option>
+        <option value="UNKNOWN">Unknown</option>
+      </select>
+    </label>
+    <label>NVR
+      <select id="nvr">
+        <option value="">All</option>
+        {% for n in nvrs %}
+        <option value="{{ n }}">{{ n }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Manufacturer
+      <select id="mfr">
+        <option value="">All</option>
+        {% for m in manufacturers %}
+        <option value="{{ m }}">{{ m }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Tile size
+      <select id="cols">
+        <option value="280">Small</option>
+        <option value="360" selected>Medium</option>
+        <option value="480">Large</option>
+      </select>
+    </label>
+    <div class="meta" id="stats"></div>
+  </div>
+  <div class="grid" id="grid">
+    {% for d in devices %}
+    <article class="tile" data-id="{{ d.deviceId }}"
+             data-name="{{ d.deviceName|lower }}" data-ip="{{ d.ipAddress }}" data-status="{{ d.status }}"
+             data-nvr="{{ d.nvrId or '' }}" data-mfr="{{ d.manufacturer or '' }}">
+      <div class="tile-head">
+        <div>
+          <strong>{{ d.deviceName }}</strong><br/>
+          <span class="meta">{{ d.ipAddress }} · NVR {{ d.nvrId or "—" }}</span>
+        </div>
+        <span class="badge {{ d.status }}">{{ d.status }}</span>
+      </div>
+      <div class="viewport" data-loaded="0">
+        <div class="placeholder">Waiting for view…</div>
+        <img alt="" loading="lazy" hidden />
+      </div>
+      <div class="tile-foot">
+        <span>NVR {{ d.nvrHost or "—" }} · ch {{ d.nvrChannel or "—" }}</span>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  <script>
+    const q = document.getElementById("q");
+    const status = document.getElementById("status");
+    const nvr = document.getElementById("nvr");
+    const mfr = document.getElementById("mfr");
+    const cols = document.getElementById("cols");
+    const grid = document.getElementById("grid");
+    const stats = document.getElementById("stats");
+    const tiles = [...document.querySelectorAll(".tile")];
+
+    function applyFilters() {
+      const term = (q.value || "").trim().toLowerCase();
+      let shown = 0;
+      for (const tile of tiles) {
+        const hay = `${tile.dataset.name} ${tile.dataset.ip} ${tile.dataset.nvr}`.toLowerCase();
+        const ok =
+          (!term || hay.includes(term)) &&
+          (!status.value || tile.dataset.status === status.value) &&
+          (!nvr.value || (tile.dataset.nvr || "").includes(nvr.value)) &&
+          (!mfr.value || tile.dataset.mfr === mfr.value);
+        tile.classList.toggle("hidden", !ok);
+        if (ok) shown++;
+      }
+      grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${cols.value}px, 1fr))`;
+      stats.textContent = `${shown} visible / ${tiles.length} total`;
+    }
+    [q, status, nvr, mfr, cols].forEach(el => el.addEventListener("input", applyFilters));
+    applyFilters();
+
+    document.querySelectorAll("[data-copy]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const v = btn.getAttribute("data-copy");
+        if (!v) return;
+        try { await navigator.clipboard.writeText(v); btn.textContent = "Copied"; setTimeout(() => btn.textContent = "Copy RTSP", 1200); } catch (_) {}
+      });
+    });
+
+    function showStored() {
+      for (const tile of tiles) {
+        const vp = tile.querySelector(".viewport");
+        const img = vp.querySelector("img");
+        const ph = vp.querySelector(".placeholder");
+        if (img.dataset.set === "1") continue;
+        img.dataset.set = "1";
+        img.onload = () => { img.hidden = false; ph.hidden = true; };
+        img.onerror = () => { img.hidden = true; ph.hidden = false; ph.textContent = "No stored picture"; };
+        img.src = `/api/cameras/${encodeURIComponent(tile.dataset.id)}/snapshot.jpg?v=2`;
+      }
+    }
+    showStored();
+  </script>
+</body>
+</html>

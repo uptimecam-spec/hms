@@ -1,0 +1,58 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Monitoring Warnings</title>
+  <style>
+    :root { --bg:#0f1419; --card:#1a2332; --border:#2a3544; --text:#e7ecf3; --muted:#8b9bb4; --bad:#ff6b6b; --ok:#3dd68c; --accent:#5b9cff; --warn:#f0c14b; }
+    body { margin:0; font-family:system-ui,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+    header { display:flex; justify-content:space-between; gap:12px; padding:14px 20px; border-bottom:1px solid var(--border); background:#121821; flex-wrap:wrap; }
+    a { color:var(--accent); text-decoration:none; }
+    main { padding:20px; max-width:1100px; margin:0 auto; }
+    table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+    th,td { padding:10px 12px; border-bottom:1px solid var(--border); text-align:left; font-size:0.88rem; }
+    th { color:var(--muted); background:#121821; }
+    .OPEN { color:var(--warn); font-weight:700; }
+    .RESOLVED { color:var(--ok); }
+    .muted { color:var(--muted); }
+    code { font-family:Consolas,monospace; font-size:0.8rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1 style="margin:0;font-size:1.1rem;">Monitoring Warnings</h1>
+      <div class="muted">Includes MISSED CHECK when a device has no MANDATORY ping for &gt; 1 hour</div>
+    </div>
+    <div><a href="/">Dashboard</a> · <a href="/devices">Devices</a> · <a href="/health-checks">Health Checks</a></div>
+  </header>
+  <main>
+    <table>
+      <thead>
+        <tr>
+          <th>Created</th>
+          <th>Type</th>
+          <th>Device</th>
+          <th>Status</th>
+          <th>Message</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for w in warnings %}
+        <tr>
+          <td><code data-utc="{{ w.createdAt }}">{{ w.createdAt }}</code></td>
+          <td>{{ w.warningType }}</td>
+          <td>{% if w.deviceId %}<a href="/devices/{{ w.deviceId }}/history">{{ w.deviceName or w.deviceId }}</a>{% else %}—{% endif %}</td>
+          <td class="{{ w.status }}">{{ w.status }}</td>
+          <td>{{ w.message }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="muted">No warnings</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </main>
+  <script src="{{ url_for('static', filename='time.js') }}"></script>
+</body>
+</html>

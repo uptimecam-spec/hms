@@ -1,0 +1,132 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ "Edit" if mode=="edit" else "Add" }} Device</title>
+  <style>
+    :root { --bg:#0f1419; --card:#1a2332; --border:#2a3544; --text:#e7ecf3; --muted:#8b9bb4; --accent:#5b9cff; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, Segoe UI, sans-serif; background:var(--bg); color:var(--text); }
+    header { padding:14px 20px; border-bottom:1px solid var(--border); background:#121821; display:flex; justify-content:space-between; align-items:center; }
+    h1 { margin:0; font-size:1.1rem; }
+    a { color:var(--accent); }
+    main { padding:20px; max-width:720px; margin:0 auto; }
+    form { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px; }
+    label { display:block; margin:12px 0 4px; color:var(--muted); font-size:0.85rem; }
+    input, select, textarea {
+      width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--border);
+      background:#121821; color:var(--text); font:inherit;
+    }
+    textarea { min-height:90px; }
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    @media (max-width:700px){ .row { grid-template-columns:1fr; } }
+    .actions { display:flex; gap:8px; margin-top:18px; flex-wrap:wrap; }
+    .btn { background:var(--accent); color:#041018; border:0; border-radius:8px; padding:10px 14px; font-weight:600; cursor:pointer; }
+    .btn.secondary { background:#2a3544; color:var(--text); text-decoration:none; display:inline-block; }
+    .check { display:flex; align-items:center; gap:8px; margin-top:14px; color:var(--text); }
+    .check input { width:auto; }
+    .flash { padding:10px 12px; border-radius:8px; margin-bottom:12px; background:#2a1a1a; color:#ffb4b4; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{{ "Edit Device" if mode=="edit" else "Add Device" }}</h1>
+    <a href="/devices">Back to list</a>
+  </header>
+  <main>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}
+        <div class="flash">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+    <form method="post" enctype="multipart/form-data"
+      action="{{ url_for('devices_update', device_id=device.deviceId) if mode=='edit' else url_for('devices_create') }}">
+      <label>Device Name *</label>
+      <input name="deviceName" required value="{{ device.deviceName if device else '' }}" />
+
+      <div class="row">
+        <div>
+          <label>Device Type *</label>
+          <select name="deviceType" required>
+            {% for t in types %}
+              <option value="{{ t }}" {% if device and device.deviceType==t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>IP Address *</label>
+          <input name="ipAddress" required placeholder="192.168.x.x" value="{{ device.ipAddress if device else '' }}" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Location</label>
+          <input name="location" value="{{ device.location if device and device.location else '' }}" />
+        </div>
+        <div>
+          <label>Department</label>
+          <input name="department" value="{{ device.department if device and device.department else '' }}" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Building</label>
+          <input name="building" value="{{ device.building if device and device.building else '' }}" />
+        </div>
+        <div>
+          <label>Floor</label>
+          <input name="floor" value="{{ device.floor if device and device.floor else '' }}" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>NVR (deviceId or name)</label>
+          <input name="nvrId" value="{{ device.nvrId if device and device.nvrId else '' }}" />
+        </div>
+        <div>
+          <label>Camera Channel</label>
+          <input name="cameraChannel" value="{{ device.cameraChannel if device and device.cameraChannel else '' }}" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Installation Date</label>
+          <input type="date" name="installationDate" value="{{ device.installationDate if device and device.installationDate else '' }}" />
+        </div>
+        <div>
+          <label>Status</label>
+          <select name="status">
+            {% for s in statuses %}
+              <option value="{{ s }}" {% if device and device.status==s %}selected{% elif not device and s=='UNKNOWN' %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <label>Reference Image</label>
+      <input type="file" name="referenceImage" accept="image/*" />
+      {% if device and device.referenceImage %}
+        <div style="margin-top:8px;"><img src="/media/{{ device.referenceImage }}" alt="" style="max-width:160px;border-radius:8px;" /></div>
+      {% endif %}
+
+      <label>Maintenance Notes</label>
+      <textarea name="maintenanceNotes">{{ device.maintenanceNotes if device and device.maintenanceNotes else '' }}</textarea>
+
+      <label class="check">
+        <input type="checkbox" name="isActive" {% if not device or device.isActive %}checked{% endif %} />
+        Active (include in monitoring)
+      </label>
+
+      <div class="actions">
+        <button class="btn" type="submit">Save</button>
+        <a class="btn secondary" href="/devices">Cancel</a>
+      </div>
+    </form>
+  </main>
+</body>
+</html>

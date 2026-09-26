@@ -1,0 +1,11 @@
+.venv
+data
+NVR DATA
+docs
+.git
+__pycache__
+*.pyc
+.env
+*.db
+check-images
+uploads

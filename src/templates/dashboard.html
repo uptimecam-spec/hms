@@ -1,0 +1,227 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Camera Ping Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2332;
+      --border: #2a3544;
+      --text: #e7ecf3;
+      --muted: #8b9bb4;
+      --ok: #3dd68c;
+      --bad: #ff6b6b;
+      --warn: #f0c14b;
+      --accent: #5b9cff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: #121821;
+    }
+    h1 { font-size: 1.15rem; margin: 0; font-weight: 600; }
+    .meta { color: var(--muted); font-size: 0.85rem; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    button {
+      background: var(--accent);
+      color: #041018;
+      border: 0;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.secondary { background: #2a3544; color: var(--text); }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    main { padding: 20px; max-width: 1100px; margin: 0 auto; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+    .card h2 { margin: 0 0 6px; font-size: 1rem; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .badge.ok { background: rgba(61,214,140,0.15); color: var(--ok); }
+    .badge.bad { background: rgba(255,107,107,0.15); color: var(--bad); }
+    .badge.unk { background: rgba(240,193,75,0.15); color: var(--warn); }
+    .row { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 0.9rem; }
+    .row span:first-child { color: var(--muted); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    th { color: var(--muted); font-weight: 600; background: #121821; }
+    tr:last-child td { border-bottom: 0; }
+    .pill { font-family: ui-monospace, Consolas, monospace; font-size: 0.8rem; }
+    .banner {
+      margin-bottom: 16px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #1e2a1e;
+      border: 1px solid #2f4a34;
+      color: #b7e0c2;
+      font-size: 0.9rem;
+    }
+    .banner.warn {
+      background: #2a2416;
+      border-color: #4a3d1e;
+      color: #e8d39a;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Camera Ping Dashboard</h1>
+      <div class="meta" id="subtitle">Loading…</div>
+    </div>
+    <div class="actions">
+      <a href="/camera-status" style="color:var(--accent);align-self:center;font-weight:600;">Camera Status</a>
+      <a href="/cameras" style="color:var(--accent);align-self:center;font-weight:600;">All Cameras</a>
+      <a href="/live" style="color:var(--accent);align-self:center;font-weight:600;">Live Wall</a>
+      <a href="/devices" style="color:var(--accent);align-self:center;font-weight:600;">Network Devices</a>
+      <a href="/health-checks" style="color:var(--accent);align-self:center;font-weight:600;">Health Checks</a>
+      <button type="button" id="btnPing">Ping now</button>
+      <button type="button" class="secondary" id="btnRefresh">Refresh</button>
+    </div>
+  </header>
+  <main>
+    <div id="banner" class="banner warn" style="display:none"></div>
+    <div class="cards" id="cards"></div>
+    <h2 style="font-size:1rem;margin:0 0 10px;color:var(--muted)">Ping history (newest first)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>When (UTC)</th>
+          <th>Source</th>
+          <th>Online</th>
+          <th>Offline</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody id="history"></tbody>
+    </table>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function badge(online) {
+      if (online === true) return '<span class="badge ok">ONLINE</span>';
+      if (online === false) return '<span class="badge bad">OFFLINE</span>';
+      return '<span class="badge unk">UNKNOWN</span>';
+    }
+
+    function yesNo(ok) {
+      return ok ? '<span style="color:var(--ok)">yes</span>' : '<span style="color:var(--bad)">no</span>';
+    }
+
+    function render(data) {
+      const intervalMin = Math.round((data.check_interval_sec || 3600) / 60);
+      $("subtitle").textContent =
+        `Updates every ${intervalMin} min · last update ${data.updated_at || "—"} · Telegram ${data.telegram_configured ? "configured" : "not set (web-only alerts in history)"}`;
+
+      const banner = $("banner");
+      banner.style.display = "none";
+
+      const cams = data.cameras || {};
+      const ids = Object.keys(cams);
+      const cfg = (data.cameras_config || []).filter(c => c.enabled);
+      const order = cfg.length ? cfg.map(c => c.id) : ids;
+
+      $("cards").innerHTML = order.map(id => {
+        const c = cams[id];
+        if (!c) {
+          const conf = cfg.find(x => x.id === id);
+          return `<div class="card"><h2>${conf ? conf.name : id}</h2>${badge(null)}<div class="row"><span>Host</span><span class="pill">${conf ? conf.host : "?"}</span></div><div class="meta" style="margin-top:8px">Waiting for first ping…</div></div>`;
+        }
+        return `<div class="card">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:start">
+            <h2>${c.name || id}</h2>${badge(c.online)}
+          </div>
+          <div class="row"><span>Host</span><span class="pill">${c.host}:${c.port}</span></div>
+          <div class="row"><span>ICMP ping</span><span>${yesNo(c.icmp_ok)}</span></div>
+          <div class="row"><span>TCP ${c.port}</span><span>${yesNo(c.tcp_ok)}</span></div>
+          <div class="row"><span>Last check</span><span class="pill">${c.last_check || "—"}</span></div>
+          <div class="meta" style="margin-top:8px">${c.detail || ""}</div>
+        </div>`;
+      }).join("") || '<div class="meta">No cameras in cameras.yaml</div>';
+
+      const hist = data.history || [];
+      $("history").innerHTML = hist.map(h => {
+        const detail = (h.cameras || []).map(c =>
+          `${c.id}:${c.online ? "up" : "DOWN"}(icmp=${c.icmp_ok ? "y" : "n"},tcp=${c.tcp_ok ? "y" : "n"})`
+        ).join(" · ");
+        return `<tr>
+          <td class="pill">${h.checked_at || ""}</td>
+          <td>${h.source || ""}</td>
+          <td style="color:var(--ok)">${h.online_count ?? ""}</td>
+          <td style="color:${(h.offline_count||0) ? "var(--bad)" : "var(--muted)"}">${h.offline_count ?? ""}</td>
+          <td class="pill">${detail}</td>
+        </tr>`;
+      }).join("") || '<tr><td colspan="5" class="meta">No ping history yet</td></tr>';
+    }
+
+    async function loadStatus() {
+      const res = await fetch("/api/status");
+      render(await res.json());
+    }
+
+    $("btnRefresh").onclick = () => loadStatus();
+    $("btnPing").onclick = async () => {
+      $("btnPing").disabled = true;
+      try {
+        const res = await fetch("/api/ping-now", { method: "POST" });
+        const body = await res.json();
+        render(body.dashboard || await (await fetch("/api/status")).json());
+      } finally {
+        $("btnPing").disabled = false;
+      }
+    };
+
+    loadStatus();
+    setInterval(loadStatus, 15000);
+  </script>
+</body>
+</html>
+
+
+

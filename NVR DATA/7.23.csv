@@ -1,0 +1,67 @@
+﻿IP Address/Registration ID,Port,Remote Channel,CAM NAME,Manufacturer,User Name,Password,Encryption,Link Info,Channel
+192.168.4.142,37777,1,1 QC Stairs,Private,admin,,0,1,1
+192.168.4.97,80,1,2  First Flr Sidy,ONVIF,admin,,0,1,1
+192.168.4.98,80,1,3  Sec Flr Sidy,ONVIF,admin,,0,1,1
+192.168.4.66,37777,1,4  QC Entry,Private,admin,,0,1,1
+192.168.4.69,80,1,5 QC Change Room,ONVIF,admin,,0,1,1
+192.168.4.79,37777,1,6 Micro Change Room,Private,admin,,0,1,1
+192.168.4.31,37777,1,66 Autoclave Room 02,Private,admin,,0,1,1
+192.168.4.149,37777,1,8 QC Lobby 01,Private,admin,,0,1,1
+192.168.4.63,37777,1,9 QC Lobby 02,Private,admin,,0,1,1
+192.168.4.76,37777,1,10 QC Lobby 03,Private,admin,,0,1,1
+192.168.4.33,37777,1,11 QC Lobby 04,Private,admin,,0,1,1
+192.168.4.25,80,1,12 QC Lobby 05,ONVIF,admin,,0,1,1
+192.168.4.24,80,1,13 QC Lobby 06,ONVIF,admin,,0,1,1
+192.168.4.153,37777,1,14 Sample Storage,Private,admin,,0,1,1
+192.168.4.82,37777,1,15 PM Testing 01,Private,admin,,0,1,1
+192.168.4.81,37777,1,16 PM Testing 02,Private,admin,,0,1,1
+192.168.4.44,80,1,17 QC Office 01,ONVIF,admin,,0,1,1
+192.168.4.74,37777,1,18 QC Office 02,Private,admin,,0,1,1
+192.168.4.71,37777,1,19 Micro Office 01,Private,admin,,0,1,1
+192.168.4.64,37777,1,20 Chemical & Glassware 02,Private,admin,,0,1,1
+192.168.4.140,80,1,21 Emergency Exit,ONVIF,admin,,0,1,1
+192.168.4.156,37777,1,Channel22,Private,admin,,0,1,1
+192.168.7.138,37777,1,23 Retain Sample 02,Private,admin,,0,1,1
+192.168.5.112,37777,1,Channel24,Private,admin,,0,1,1
+192.168.6.126,37777,1,25 Retain Sample 04,Private,admin,,0,1,1
+192.168.4.80,37777,1,26 Chemical & Glassware 01,Private,admin,,0,1,1
+192.168.4.38,37777,1,27,Private,admin,,0,1,1
+192.168.4.41,37777,1,28,Private,admin,,0,1,1
+192.168.4.40,37777,1,29 HPLC Room 01,Private,admin,,0,1,1
+192.168.4.151,37777,1,30 HPLC Room 02,Private,admin,,0,1,1
+192.168.4.77,37777,1,31 Instrument Room,Private,admin,,0,1,1
+192.168.4.78,37777,1,32 Balance Room,Private,admin,,0,1,1
+192.168.4.42,37777,1,33 Physio Chemical Room 01,Private,admin,,0,1,1
+192.168.4.65,37777,1,34 Physio Chemical Room 02,Private,admin,,0,1,1
+192.168.4.34,37777,1,35 Physio Chemical Room 03,Private,admin,,0,1,1
+192.168.4.26,37777,1,36 BET Room,Private,admin,,0,1,1
+192.168.8.5,37777,1,Channel37,Private,admin,,0,1,1
+192.168.4.37,37777,1,38 Micro Washing,Private,admin,,0,1,1
+192.168.3.114,37777,1,39 Incubator Room 01,Private,admin,,0,1,1
+192.168.3.210,37777,1,Channel40,Private,admin,,0,1,1
+192.168.4.83,37777,1,41 QC Lobby 01,Private,admin,,0,1,1
+192.168.4.84,37777,1,42 QC Lobby 02,Private,admin,,0,1,1
+192.168.4.30,37777,1,43 Observation Room 01,Private,admin,,0,1,1
+192.168.4.29,37777,1,44 Observation Room 02,Private,admin,,0,1,1
+192.168.4.112,80,1,45 Sec Flr QC 01,ONVIF,admin,,0,1,1
+192.168.4.100,80,1,46 Sec Flr QC 02,ONVIF,admin,,0,1,1
+192.168.4.117,80,1,47 Sec Flr QC 03,ONVIF,admin,,0,1,1
+192.168.4.109,80,1,48 Sec Flr QC 04,ONVIF,admin,,0,1,1
+192.168.4.111,80,1,49 Sec Flr QC 05,ONVIF,admin,,0,1,1
+192.168.4.141,80,1,50 Sec Flr QC 06,ONVIF,admin,,0,1,1
+192.168.4.102,80,1,51 Sec Flr QC 07,ONVIF,admin,,0,1,1
+192.168.4.88,37777,1,52 Sec Flr QC 08,Private,admin,,0,1,1
+192.168.4.99,80,1,53 Sec Flr QC Ele Panel,ONVIF,admin,,0,1,1
+192.168.4.96,37777,1,54 QC Filter Storage Room,Private,admin,,0,1,1
+192.168.4.104,80,1,55 QC Filter Cleaning Room,ONVIF,admin,,0,1,1
+192.168.4.103,80,1,56 QC Sec Flr Gallery,ONVIF,admin,,0,1,1
+192.168.4.101,80,1,57 QC Sec Flr Terrace 01,ONVIF,admin,,0,1,1
+192.168.4.105,80,1,58 QC Sec Flr Terrace 02,ONVIF,admin,,0,1,1
+192.168.4.93,37777,1,59 Beta Filter Storage Room,Private,admin,,0,1,1
+192.168.4.94,37777,1,60 Beta Filter Cleaning Room,Private,admin,,0,1,1
+192.168.4.138,80,1,61 Beta AHU Sec Flr 01,ONVIF,admin,,0,1,1
+192.168.4.139,80,1,62 Beta AHU Sec Flr 02,ONVIF,admin,,0,1,1
+192.168.4.118,80,1,63 Beta AHU Sec Flr 03,ONVIF,admin,,0,1,1
+192.168.4.43,37777,1,64 Autoclave Airlock 01,Private,admin,,0,1,1
+,,,,,,,,,
+"Note: Address refers to IP address, domain name or RTSP address. Port value ranges from 1 to 65535. Single-channel IPC is 1 when remote channel No. is larger than 1; The manufacturers include:Private,Panasonic,Sony,Hanwha,Axis,Pelco,Arecont,ONVIF,Canon,Register",,,,,,,,,

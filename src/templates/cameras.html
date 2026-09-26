@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>All Cameras — Health</title>
+  <style>
+    :root { --bg:#0f1419; --card:#1a2332; --border:#2a3544; --text:#e7ecf3; --muted:#8b9bb4; --ok:#3dd68c; --bad:#ff6b6b; --accent:#5b9cff; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, Segoe UI, sans-serif; background:var(--bg); color:var(--text); }
+    header { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 20px; border-bottom:1px solid var(--border); background:#121821; flex-wrap:wrap; }
+    a { color:var(--accent); text-decoration:none; }
+    h1 { margin:0; font-size:1.1rem; }
+    .btn { background:var(--accent); color:#041018; border:0; border-radius:8px; padding:8px 12px; font-weight:600; cursor:pointer; display:inline-block; font-size:0.85rem; }
+    .btn.secondary { background:#2a3544; color:var(--text); }
+    main { padding:16px 20px; max-width:1600px; margin:0 auto; }
+    .filters { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px; align-items:end; }
+    .filters label { display:flex; flex-direction:column; gap:4px; font-size:0.75rem; color:var(--muted); }
+    .filters input, .filters select { background:#121821; border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 10px; min-width:140px; }
+    .stats { color:var(--muted); font-size:0.85rem; margin-bottom:10px; }
+    .table-wrap { overflow:auto; border:1px solid var(--border); border-radius:12px; max-height: calc(100vh - 220px); }
+    table { width:100%; border-collapse:collapse; background:var(--card); font-size:0.82rem; }
+    th, td { padding:8px 10px; border-bottom:1px solid var(--border); text-align:left; white-space:nowrap; }
+    th { position:sticky; top:0; background:#121821; color:var(--muted); z-index:1; }
+    tr.hidden { display:none; }
+    .badge { padding:2px 8px; border-radius:999px; font-size:0.72rem; font-weight:700; }
+    .ONLINE { background:rgba(61,214,140,.15); color:var(--ok); }
+    .OFFLINE { background:rgba(255,107,107,.15); color:var(--bad); }
+    .UNKNOWN,.WARNING,.UNDER_MAINTENANCE { background:rgba(240,193,75,.15); color:#f0c14b; }
+    code { font-family: Consolas, monospace; font-size:0.78rem; }
+    .rtsp { max-width:280px; overflow:hidden; text-overflow:ellipsis; display:inline-block; vertical-align:bottom; }
+    .muted { color:var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>All Cameras (NVR inventory)</h1>
+      <div class="muted">Worker {{ "running" if worker.running else "stopped" }} · {{ devices|length }} cameras loaded from NVR DATA</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a class="btn secondary" href="/">Dashboard</a>
+      <a class="btn" href="/camera-status">Status monitoring</a>
+      <a class="btn secondary" href="/live">Live wall</a>
+      <a class="btn secondary" href="/devices">Device master</a>
+      <button class="btn secondary" type="button" id="syncNvr">Re-sync NVR files</button>
+    </div>
+  </header>
+  <main>
+    <div class="filters">
+      <label>Search
+        <input id="q" type="search" placeholder="Name, IP, NVR…" />
+      </label>
+      <label>Status
+        <select id="status">
+          <option value="">All</option>
+          <option value="ONLINE">Online</option>
+          <option value="OFFLINE">Offline</option>
+          <option value="UNKNOWN">Unknown</option>
+        </select>
+      </label>
+      <label>NVR export
+        <select id="nvr">
+          <option value="">All</option>
+          {% for n in nvrs %}
+          <option value="{{ n }}">{{ n }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Manufacturer
+        <select id="mfr">
+          <option value="">All</option>
+          {% for m in manufacturers %}
+          <option value="{{ m }}">{{ m }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Active
+        <select id="active">
+          <option value="">All</option>
+          <option value="1">Active only</option>
+          <option value="0">Inactive</option>
+        </select>
+      </label>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>IP</th>
+            <th>Health</th>
+            <th>RTT</th>
+            <th>NVR</th>
+            <th>Mfr</th>
+            <th>Ch</th>
+            <th>NVR channel</th>
+            <th>Last check</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          {% for d in devices %}
+          <tr data-name="{{ d.deviceName|lower }}" data-ip="{{ d.ipAddress }}" data-status="{{ d.status }}"
+              data-nvr="{{ d.nvrId or '' }}" data-mfr="{{ d.manufacturer or '' }}" data-active="{{ 1 if d.isActive else 0 }}">
+            <td class="muted">{{ loop.index }}</td>
+            <td><strong>{{ d.deviceName }}</strong><br/><span class="muted">{{ d.deviceId }}</span></td>
+            <td><code>{{ d.ipAddress }}</code></td>
+            <td><span class="badge {{ d.status }}">{{ d.status }}</span></td>
+            <td>{% if d.lastResponseTimeMs is not none %}{{ d.lastResponseTimeMs|round(1) }} ms{% else %}—{% endif %}</td>
+            <td>{{ d.nvrId or "—" }}</td>
+            <td>{{ d.manufacturer or "—" }}</td>
+            <td>{{ d.cameraChannel or "—" }}</td>
+            <td class="muted">{{ d.nvrHost or "—" }} · {{ d.nvrChannel or "—" }}</td>
+            <td class="muted"><code {% if d.lastCheckAt %}data-utc="{{ d.lastCheckAt }}"{% endif %}>{{ d.lastCheckAt or "—" }}</code></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </main>
+  <script>
+    const q = document.getElementById("q");
+    const status = document.getElementById("status");
+    const nvr = document.getElementById("nvr");
+    const mfr = document.getElementById("mfr");
+    const active = document.getElementById("active");
+    const rows = [...document.querySelectorAll("#rows tr")];
+    const stats = document.getElementById("stats");
+
+    function applyFilters() {
+      const term = (q.value || "").trim().toLowerCase();
+      let shown = 0, online = 0, offline = 0;
+      for (const tr of rows) {
+        const hay = `${tr.dataset.name} ${tr.dataset.ip} ${tr.dataset.nvr}`.toLowerCase();
+        const ok =
+          (!term || hay.includes(term)) &&
+          (!status.value || tr.dataset.status === status.value) &&
+          (!nvr.value || (tr.dataset.nvr || "").includes(nvr.value)) &&
+          (!mfr.value || tr.dataset.mfr === mfr.value) &&
+          (!active.value || tr.dataset.active === active.value);
+        tr.classList.toggle("hidden", !ok);
+        if (ok) {
+          shown++;
+          if (tr.dataset.status === "ONLINE") online++;
+          if (tr.dataset.status === "OFFLINE") offline++;
+        }
+      }
+      stats.textContent = `Showing ${shown} of ${rows.length} · online ${online} · offline ${offline}`;
+    }
+    [q, status, nvr, mfr, active].forEach(el => el.addEventListener("input", applyFilters));
+    applyFilters();
+
+    document.getElementById("syncNvr").addEventListener("click", async () => {
+      const btn = document.getElementById("syncNvr");
+      btn.disabled = true;
+      try {
+        await fetch("/api/sync-nvr", { method: "POST" });
+        location.reload();
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+  <script src="{{ url_for('static', filename='time.js') }}"></script>
+</body>
+</html>

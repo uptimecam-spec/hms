@@ -1,0 +1,25 @@
+﻿# Seeded from cctv-detection cameras.json (IPs only — no credentials stored here)
+# Add more cameras anytime; leave enabled: false to skip.
+cameras:
+  - id: cam1
+    name: "Camera 1 - Conference Room"
+    host: 192.168.6.152
+    port: 554
+    enabled: true
+  - id: cam2
+    name: "Camera 2"
+    host: 192.168.6.173
+    port: 554
+    enabled: true
+  - id: cam3
+    name: "Camera 3 - Demo"
+    host: 192.168.4.148
+    port: 554
+    enabled: true
+    # Direct RTSP camera (not a Dahua NVR channel): own vendor path + credentials.
+    rtsp_url: "rtsp://demo:Admin@123@192.168.4.148:554/video/live?channel=1&subtype=0"
+  # - id: cam3
+  #   name: "Camera 3"
+  #   host: 192.168.6.x
+  #   port: 554
+  #   enabled: false
