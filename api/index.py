@@ -1,4 +1,4 @@
-"""Legacy /api entry for Vercel Python functions."""
+"""Vercel Python entrypoint for the read-only cloud dashboard."""
 
 from src.cloud_webapp import app
 
