@@ -17,6 +17,7 @@
       --pending: #f0c14b;
       --preview: #e8c547;
       --accent: #7aa7ff;
+      --fav: #f5c542;
       --card-w: 112px;
       --gap: 6px;
     }
@@ -64,6 +65,7 @@
     .chip.offline.active { background: var(--offline); color: #2a0b10; }
     .chip.pending.active { background: var(--pending); color: #2a2208; }
     .chip.preview.active { background: var(--preview); color: #2a2208; }
+    .chip.fav.active { background: var(--fav); color: #2a2208; }
     .chip-sep {
       width: 1px; height: 14px; background: var(--line); margin: 0 2px; flex: 0 0 auto;
     }
@@ -75,10 +77,15 @@
     .chip.nvr.active { background: var(--accent); color: #061018; opacity: 1; }
     #nvrChips { display: contents; }
     .tools { margin-left: auto; display: flex; gap: 6px; align-items: center; }
-    .tools select {
+    .tools select, .tools .user-input {
       background: #0c1117; border: 1px solid var(--line); border-radius: 7px;
       padding: 4px 7px; font-size: 10px; cursor: pointer;
     }
+    .tools .user-input {
+      width: 88px; cursor: text; outline: none;
+    }
+    .tools .user-input:focus { border-color: rgba(122,167,255,.55); }
+    .user-label { font-size: 9px; color: var(--muted); white-space: nowrap; }
     .chip:hover, .tools select:hover { border-color: rgba(255,255,255,.2); }
     .links { display: flex; gap: 8px; font-size: 10px; color: var(--muted); }
     .live {
@@ -170,6 +177,17 @@
     .online .dot { background: var(--online); box-shadow: 0 0 0 0 rgba(62,224,160,.5); animation: pulse 2.4s infinite; }
     .offline .dot { background: var(--offline); }
     .preview-miss .dot { background: var(--preview); box-shadow: 0 0 0 0 rgba(232,197,71,.45); animation: pulse 2.4s infinite; }
+    .fav-btn {
+      position: absolute; top: 3px; left: 3px; z-index: 3;
+      width: 20px; height: 20px; border-radius: 6px;
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(0,0,0,.55); color: rgba(255,255,255,.55);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 12px; line-height: 1; cursor: pointer; padding: 0;
+    }
+    .fav-btn:hover { border-color: rgba(245,197,66,.55); color: var(--fav); }
+    .fav-btn.on { color: var(--fav); border-color: rgba(245,197,66,.65); background: rgba(40,30,8,.72); }
+    .cam.is-fav { border-color: rgba(245,197,66,.42); }
 
     .meta {
       padding: 4px 5px 5px;
@@ -190,6 +208,16 @@
       padding: 1px 4px; border-radius: 999px;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
     }
+    .start-btn {
+      border: 1px solid rgba(122,167,255,.35);
+      background: rgba(122,167,255,.16);
+      color: var(--accent);
+      border-radius: 999px;
+      padding: 1px 6px;
+      font-size: 8px; font-weight: 750; letter-spacing: .02em;
+      cursor: pointer; flex: 0 0 auto;
+    }
+    .start-btn:hover { background: rgba(122,167,255,.28); border-color: rgba(122,167,255,.55); }
     .online .badge { color: #073222; background: var(--online); }
     .offline .badge { color: #3a0d14; background: var(--offline); }
     .preview-miss .badge { color: #2c2308; background: var(--preview); }
@@ -353,6 +381,7 @@
     <input id="q" class="search" type="search" placeholder="Search name, IP, or NVR" />
     <div class="chips" id="chips">
       <button class="chip all active" data-filter="">All <b id="nAll">0</b></button>
+      <button class="chip fav" data-filter="FAVOURITES">Favourites <b id="nFav">0</b></button>
       <button class="chip online" data-filter="ONLINE">Online <b id="nOn">0</b></button>
       <button class="chip offline" data-filter="OFFLINE">Offline <b id="nOff">0</b></button>
       <button class="chip preview" data-filter="PREVIEW_UNAVAILABLE">Preview Error <b id="nPrev">0</b></button>
@@ -362,6 +391,8 @@
     </div>
     <div class="tools">
       <span class="live" title="Auto refresh"></span>
+      <span class="user-label" title="Favourites are saved per user">User</span>
+      <input id="favUser" class="user-input" type="text" maxlength="64" spellcheck="false" aria-label="Favourites user" {% if remote_mode %}readonly{% endif %} />
       <select id="sort" aria-label="Sort">
         <option value="channel" selected>Channel</option>
         <option value="name">Name</option>
@@ -376,6 +407,10 @@
       <div class="links">
         <a href="/live">Wall</a>
         <a href="/cameras">Inventory</a>
+      </div>
+      {% else %}
+      <div class="links">
+        <a href="/logout">Sign out</a>
       </div>
       {% endif %}
     </div>
@@ -411,16 +446,17 @@
         <div class="facts" id="facts"></div>
         <div class="modal-actions">
           {% if not remote_mode %}
-          <button class="ghost" id="checkLive" type="button">Check Live</button>
+          <button class="ghost" id="checkLive" type="button">Start</button>
           <button class="primary" id="pingOne" type="button">Ping now</button>
           <button class="ghost" id="retryPreview" type="button">Retry Preview</button>
           <a class="ghost" id="historyLink" href="#">Full history</a>
           {% elif live_bridge_enabled or (boot is defined and boot.liveBridgeEnabled) %}
-          <button class="ghost" id="checkLive" type="button">Check Live</button>
+          <button class="ghost" id="checkLive" type="button">Start</button>
           <span class="ghost" style="opacity:.7;cursor:default;pointer-events:none">Ping / retry need on-site LAN</span>
           {% else %}
           <span class="ghost" style="opacity:.7;cursor:default;pointer-events:none">LAN actions unavailable remotely</span>
           {% endif %}
+          <button class="ghost" id="modalFav" type="button">☆ Favourite</button>
         </div>
         <div class="history-block">
           <h3>Health Check History</h3>
@@ -444,6 +480,8 @@
     let liveTimer = null;
     let liveToken = 0;
     let liveInFlight = false;
+    let username = String(boot.username || localStorage.getItem("camFavUser") || "local").trim() || "local";
+    let favorites = new Set(Array.isArray(boot.favorites) ? boot.favorites.map(String) : []);
     const board = document.getElementById("board");
     const empty = document.getElementById("empty");
     const q = document.getElementById("q");
@@ -454,7 +492,103 @@
     const maximizePreviewBtn = document.getElementById("maximizePreview");
     const previewStatusEl = document.getElementById("previewStatus");
     const previewStatusText = document.getElementById("previewStatusText");
+    const favUserInput = document.getElementById("favUser");
+    const modalFavBtn = document.getElementById("modalFav");
     let previewMaximized = false;
+
+    function favStorageKey(user) {
+      return "camFavorites:" + (user || "local");
+    }
+    function loadLocalFavorites(user) {
+      try {
+        const raw = localStorage.getItem(favStorageKey(user));
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed.map(String) : null;
+      } catch (_) {
+        return null;
+      }
+    }
+    function saveLocalFavorites(user, ids) {
+      localStorage.setItem(favStorageKey(user), JSON.stringify(ids || []));
+      localStorage.setItem("camFavUser", user || "local");
+    }
+    function syncFavoritesFromBoot() {
+      const local = loadLocalFavorites(username);
+      if (Array.isArray(boot.favorites) && boot.favorites.length) {
+        favorites = new Set(boot.favorites.map(String));
+      } else if (local && local.length) {
+        favorites = new Set(local);
+      } else {
+        favorites = new Set(Array.isArray(boot.favorites) ? boot.favorites.map(String) : []);
+      }
+      saveLocalFavorites(username, [...favorites]);
+      if (favUserInput) favUserInput.value = username;
+    }
+    syncFavoritesFromBoot();
+
+    async function persistFavorites(ids) {
+      const list = [...ids];
+      favorites = new Set(list);
+      saveLocalFavorites(username, list);
+      try {
+        await fetch("/api/favorites", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user: username, favorites: list }),
+        });
+      } catch (_) {}
+      updateFavCount();
+      syncModalFav();
+    }
+
+    async function toggleFavourite(deviceId) {
+      if (!deviceId) return;
+      const next = new Set(favorites);
+      if (next.has(deviceId)) next.delete(deviceId);
+      else next.add(deviceId);
+      await persistFavorites(next);
+      paint();
+    }
+
+    function isFavourite(deviceId) {
+      return favorites.has(String(deviceId));
+    }
+
+    function updateFavCount() {
+      const el = document.getElementById("nFav");
+      if (el) el.textContent = String(favorites.size);
+    }
+
+    function syncModalFav() {
+      if (!modalFavBtn) return;
+      const on = selectedId && isFavourite(selectedId);
+      modalFavBtn.textContent = on ? "★ Favourited" : "☆ Favourite";
+      modalFavBtn.classList.toggle("live-active", !!on);
+    }
+
+    async function switchUser(nextUser) {
+      const cleaned = String(nextUser || "").trim().replace(/[^A-Za-z0-9._@-]/g, "_").slice(0, 64) || "local";
+      if (cleaned === username) return;
+      username = cleaned;
+      localStorage.setItem("camFavUser", username);
+      if (favUserInput) favUserInput.value = username;
+      try {
+        const res = await fetch("/api/favorites?user=" + encodeURIComponent(username));
+        const data = await res.json();
+        if (data && Array.isArray(data.favorites) && data.favorites.length) {
+          favorites = new Set(data.favorites.map(String));
+        } else {
+          const local = loadLocalFavorites(username) || [];
+          favorites = new Set(local);
+        }
+      } catch (_) {
+        favorites = new Set(loadLocalFavorites(username) || []);
+      }
+      saveLocalFavorites(username, [...favorites]);
+      updateFavCount();
+      paint();
+    }
 
     function syncRemoteSubline() {
       if (!remoteMode) return;
@@ -515,6 +649,7 @@
     }
     function matchesFilter(c) {
       const net = c.networkStatus || c.status;
+      if (filter === "FAVOURITES") return isFavourite(c.deviceId);
       if (filter === "PENDING") return net !== "ONLINE" && net !== "OFFLINE";
       if (filter === "PREVIEW_UNAVAILABLE") return net === "ONLINE" && c.previewStatus === "UNAVAILABLE";
       if (filter === "ONLINE") return net === "ONLINE";
@@ -657,21 +792,27 @@
       const netOnline = (c.networkStatus || c.status) === "ONLINE";
       const missText = state === "offline" ? "Offline" : "No preview";
       const missClass = state === "offline" ? "miss offline-miss" : "miss";
+      const favOn = isFavourite(c.deviceId);
+      const canStart = !remoteMode || liveBridgeEnabled;
       const imgHtml = src
         ? `<img alt="" decoding="async" loading="lazy" fetchpriority="low" data-id="${escapeAttr(c.deviceId)}" src="${escapeAttr(src)}" />`
         : "";
-      return `<button class="cam ${state}" type="button" data-id="${c.deviceId}" data-nvr="${escapeAttr(nvrId || c.nvrGroup || "")}" title="${escapeAttr(cameraName(c) + " · " + (c.ipAddress || ""))}">
+      return `<div class="cam ${state}${favOn ? " is-fav" : ""}" role="button" tabindex="0" data-id="${c.deviceId}" data-nvr="${escapeAttr(nvrId || c.nvrGroup || "")}" title="${escapeAttr(cameraName(c) + " · " + (c.ipAddress || ""))}">
         <div class="thumb">
           ${imgHtml}
           <div class="${missClass}">${missText}</div>
+          <button class="fav-btn${favOn ? " on" : ""}" type="button" data-fav="${escapeAttr(c.deviceId)}" title="${favOn ? "Remove favourite" : "Add favourite"}" aria-label="Favourite">${favOn ? "★" : "☆"}</button>
           <span class="dot"></span>
         </div>
         <div class="meta">
           <div class="name">${escapeHtml(cameraName(c))}</div>
           <div class="sub">Ch ${escapeHtml(ch)} · ${escapeHtml(c.ipAddress || "")}</div>
-          <div class="badge-row"><span class="badge">${label(c)}</span></div>
+          <div class="badge-row">
+            <span class="badge">${label(c)}</span>
+            ${canStart ? `<button class="start-btn" type="button" data-start="${escapeAttr(c.deviceId)}" title="Start live preview">Start</button>` : ""}
+          </div>
         </div>
-      </button>`;
+      </div>`;
     }
 
     function nvrSectionHtml(group) {
@@ -706,6 +847,7 @@
       document.getElementById("nOff").textContent = counts.OFFLINE;
       document.getElementById("nPrev").textContent = counts.PREVIEW_UNAVAILABLE;
       document.getElementById("nPend").textContent = counts.UNKNOWN;
+      updateFavCount();
       if (remoteMode) {
         syncRemoteSubline();
       } else {
@@ -720,6 +862,10 @@
       board.querySelectorAll(".nvr-section").forEach(el => el.remove());
       empty.insertAdjacentHTML("beforebegin", visible.map(nvrSectionHtml).join(""));
       empty.hidden = visible.length !== 0;
+      empty.textContent = filter === "FAVOURITES"
+        ? "No favourite cameras yet. Tap ★ on a camera to save it for this user."
+        : "No cameras match this view.";
+      syncModalFav();
 
       board.querySelectorAll(".thumb img[src]").forEach(img => {
         const id = img.dataset.id;
@@ -920,7 +1066,7 @@
       if (modalShot) modalShot.classList.remove("live-on");
       if (checkLiveBtn) {
         checkLiveBtn.disabled = false;
-        checkLiveBtn.textContent = "Check Live";
+        checkLiveBtn.textContent = "Start";
         checkLiveBtn.classList.remove("live-active");
       }
       if (selectedId && !silent) {
@@ -980,7 +1126,7 @@
       const token = liveToken;
       if (modalShot) modalShot.classList.add("live-on");
       if (checkLiveBtn) {
-        checkLiveBtn.textContent = "Stop Live";
+        checkLiveBtn.textContent = "Stop";
         checkLiveBtn.classList.add("live-active");
       }
       setPreviewStatus("loading", "Connecting to camera for live preview…");
@@ -988,14 +1134,17 @@
       pullLiveFrame(deviceId, token);
     }
 
-    function openModal(id) {
+    function openModal(id, opts) {
+      const autoStart = !!(opts && opts.startLive);
       stopLivePreview();
       setPreviewMaximized(false);
       selectedId = id;
       const c = cameras.find(x => x.deviceId === id);
       if (!c) return;
       fillModal(c);
+      syncModalFav();
       document.getElementById("overlay").classList.add("open");
+      if (autoStart && checkLiveBtn) startLivePreview(id);
     }
     function closeModal() {
       stopLivePreview();
@@ -1068,8 +1217,29 @@
     }
 
     board.addEventListener("click", (e) => {
+      const fav = e.target.closest("[data-fav]");
+      if (fav) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleFavourite(fav.dataset.fav);
+        return;
+      }
+      const start = e.target.closest("[data-start]");
+      if (start) {
+        e.preventDefault();
+        e.stopPropagation();
+        openModal(start.dataset.start, { startLive: true });
+        return;
+      }
       const card = e.target.closest(".cam");
       if (card) openModal(card.dataset.id);
+    });
+    board.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const card = e.target.closest(".cam");
+      if (!card || e.target.closest("button")) return;
+      e.preventDefault();
+      openModal(card.dataset.id);
     });
     document.getElementById("closeModal").addEventListener("click", closeModal);
     document.getElementById("overlay").addEventListener("click", (e) => {
@@ -1132,6 +1302,17 @@
       if (!selectedId) return;
       if (liveActive) stopLivePreview();
       else startLivePreview(selectedId);
+    });
+    modalFavBtn?.addEventListener("click", () => {
+      if (selectedId) toggleFavourite(selectedId);
+    });
+    favUserInput?.addEventListener("change", () => switchUser(favUserInput.value));
+    favUserInput?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        switchUser(favUserInput.value);
+        favUserInput.blur();
+      }
     });
     maximizePreviewBtn.addEventListener("click", () => {
       setPreviewMaximized(!previewMaximized);
