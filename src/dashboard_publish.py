@@ -56,6 +56,8 @@ def _enrich_cameras_with_images(
                 cam["previewStatus"] = "AVAILABLE"
                 cam["latestImageCheckId"] = first_img["id"]
                 cam["latestImagePath"] = first_img.get("imagePath")
+                # Stable cache-buster for snapshot URLs until the next capture.
+                cam["previewVersion"] = first_img["id"]
                 display = display_status_for(cam.get("networkStatus") or "UNKNOWN", "AVAILABLE")
                 cam["displayStatus"] = display
                 cam["displayStatusLabel"] = status_label(display)
@@ -73,6 +75,7 @@ def _enrich_cameras_with_images(
                 "previewStatus",
                 "latestImageCheckId",
                 "latestImagePath",
+                "previewVersion",
                 "displayStatus",
                 "displayStatusLabel",
             ):

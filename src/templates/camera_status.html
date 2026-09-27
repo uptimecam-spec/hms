@@ -509,8 +509,9 @@
     }
     function previewUrl(c) {
       if (!c.previewAvailable || c.previewStatus === "UNAVAILABLE") return "";
-      const v = c.previewVersion || 1;
-      return `/api/cameras/${encodeURIComponent(c.deviceId)}/snapshot.jpg?v=${v}`;
+      // Prefer immutable check id so browsers can hard-cache until the next capture.
+      const v = c.latestImageCheckId || c.previewVersion || c.lastCheckAt || "1";
+      return `/api/cameras/${encodeURIComponent(c.deviceId)}/snapshot.jpg?v=${encodeURIComponent(v)}`;
     }
     function matchesFilter(c) {
       const net = c.networkStatus || c.status;
@@ -657,7 +658,7 @@
       const missText = state === "offline" ? "Offline" : "No preview";
       const missClass = state === "offline" ? "miss offline-miss" : "miss";
       const imgHtml = src
-        ? `<img alt="" decoding="async" loading="eager" data-id="${escapeAttr(c.deviceId)}" src="${escapeAttr(src)}" />`
+        ? `<img alt="" decoding="async" loading="lazy" fetchpriority="low" data-id="${escapeAttr(c.deviceId)}" src="${escapeAttr(src)}" />`
         : "";
       return `<button class="cam ${state}" type="button" data-id="${c.deviceId}" data-nvr="${escapeAttr(nvrId || c.nvrGroup || "")}" title="${escapeAttr(cameraName(c) + " · " + (c.ipAddress || ""))}">
         <div class="thumb">
@@ -839,7 +840,7 @@
               ? "Random Health Check"
               : (item.checkKindLabel || item.checkKind || "Check");
           const thumb = item.hasImage
-            ? `<img src="/api/cameras/${encodeURIComponent(deviceId)}/health-checks/${encodeURIComponent(item.id)}/image.jpg" alt="" title="View image" data-hist-img />`
+            ? `<img src="/api/cameras/${encodeURIComponent(deviceId)}/health-checks/${encodeURIComponent(item.id)}/image.jpg?v=${encodeURIComponent(item.id)}" alt="" title="View image" loading="lazy" decoding="async" data-hist-img />`
             : `<span>No image</span>`;
           html += `<div class="hist-item">
             <div>

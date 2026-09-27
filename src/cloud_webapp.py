@@ -18,7 +18,9 @@ from src.bunny_storage import (
     download_bytes,
     download_json,
     is_bunny_path,
+    public_or_proxy_hint,
 )
+from src.image_cache import IMAGE_CACHE
 from src.live_bridge import (
     bridge_live_path,
     cloud_live_bridge_ready,
@@ -183,17 +185,37 @@ def api_camera_health_history(device_id: str):
 
 
 def _image_for_check(device_id: str, check_id: str, image_path: str | None = None) -> bytes | None:
+    cache_key = f"{device_id}:{check_id}:{image_path or ''}"
+    cached = IMAGE_CACHE.get(cache_key)
+    if cached:
+        return cached
+
+    data = None
     if image_path and is_bunny_path(image_path):
         data = download_bytes(image_path)
-        if data:
-            return data
-    data = download_bytes(check_image_object_key(device_id, check_id))
-    if data:
-        return data
-    if image_path and not is_bunny_path(image_path):
+    if not data:
+        data = download_bytes(check_image_object_key(device_id, check_id))
+    if not data and image_path and not is_bunny_path(image_path):
         # Local-relative paths are not available on Vercel.
         return None
-    return None
+    if data:
+        IMAGE_CACHE.put(cache_key, data)
+    return data
+
+
+def _jpeg_response(data: bytes, *, immutable: bool = False, max_age: int = 86400) -> Response:
+    if immutable:
+        cache = f"private, max-age={max_age}, immutable"
+    else:
+        cache = f"private, max-age={max_age}"
+    return Response(
+        data,
+        mimetype="image/jpeg",
+        headers={
+            "Cache-Control": cache,
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @app.get("/api/cameras/<device_id>/health-checks/<check_id>/image.jpg")
@@ -205,14 +227,17 @@ def api_camera_health_check_image(device_id: str, check_id: str):
         if item.get("id") == check_id:
             image_path = item.get("imagePath")
             break
+    # Prefer CDN redirect when configured (fastest path for the browser).
+    cdn = public_or_proxy_hint(image_path) if image_path else None
+    if not cdn:
+        cdn = public_or_proxy_hint(check_image_object_key(device_id, check_id))
+    if cdn:
+        return redirect(cdn, code=302)
     data = _image_for_check(device_id, check_id, image_path)
     if not data:
         return Response(status=404)
-    return Response(
-        data,
-        mimetype="image/jpeg",
-        headers={"Cache-Control": "public, max-age=300"},
-    )
+    # History frames never change once saved.
+    return _jpeg_response(data, immutable=True, max_age=30 * 24 * 3600)
 
 
 @app.get("/api/cameras/<device_id>/snapshot.jpg")
@@ -236,14 +261,16 @@ def api_camera_snapshot(device_id: str):
             image_path = first.get("imagePath")
     if not check_id:
         return Response(status=404)
+    cdn = public_or_proxy_hint(image_path) if image_path else None
+    if not cdn:
+        cdn = public_or_proxy_hint(check_image_object_key(device_id, check_id))
+    if cdn:
+        return redirect(cdn, code=302)
     data = _image_for_check(device_id, check_id, image_path)
     if not data:
         return Response(status=404)
-    return Response(
-        data,
-        mimetype="image/jpeg",
-        headers={"Cache-Control": "public, max-age=120"},
-    )
+    # Snapshot URL is versioned by ?v=checkId in the UI; cache hard once loaded.
+    return _jpeg_response(data, immutable=True, max_age=7 * 24 * 3600)
 
 
 @app.get("/api/cameras/<device_id>/live.jpg")

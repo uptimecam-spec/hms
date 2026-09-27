@@ -90,17 +90,23 @@ def _object_url(endpoint: str, zone: str, object_key: str) -> str:
 
 
 def upload_bytes(object_key: str, data: bytes, *, content_type: str = "image/jpeg") -> str:
-    """Upload raw bytes. Returns bunny: path on success. Raises on failure."""
+    """Upload raw bytes. Returns bunny: path on success. Raises on failure.
+
+    Sets long Cache-Control so Bunny Pull Zones / CDN can cache on save.
+    """
     if not bunny_configured():
         raise RuntimeError("Bunny storage is not configured")
     cfg = bunny_settings()
     url = _object_url(cfg["endpoint"], cfg["zone"], object_key)
+    # Check images are immutable per object key; cache aggressively at the edge.
+    cache_control = "public, max-age=2592000, immutable"
     response = requests.put(
         url,
         data=data,
         headers={
             "AccessKey": cfg["password"],
             "Content-Type": content_type,
+            "Cache-Control": cache_control,
         },
         timeout=60,
     )
