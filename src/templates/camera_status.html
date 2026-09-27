@@ -188,6 +188,39 @@
     .fav-btn:hover { border-color: rgba(245,197,66,.55); color: var(--fav); }
     .fav-btn.on { color: var(--fav); border-color: rgba(245,197,66,.65); background: rgba(40,30,8,.72); }
     .cam.is-fav { border-color: rgba(245,197,66,.42); }
+    .cam.quality-poor { border-color: rgba(255,140,66,.5); }
+    .quality-mark {
+      position: absolute; left: 4px; bottom: 4px; z-index: 3;
+      font-size: 8px; font-weight: 800; letter-spacing: .04em;
+      padding: 2px 5px; border-radius: 999px;
+      background: rgba(180,70,20,.92); color: #fff4ea;
+      border: 1px solid rgba(255,180,120,.45);
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+    .badge.quality {
+      background: rgba(255,140,66,.18); color: #ffb37a;
+      border: 1px solid rgba(255,140,66,.35);
+    }
+    .quality-pill {
+      display: none; position: absolute; right: 8px; bottom: 8px; z-index: 4;
+      font-size: 10px; font-weight: 750; letter-spacing: .03em;
+      padding: 4px 9px; border-radius: 999px;
+      background: rgba(180,70,20,.94); color: #fff4ea;
+      border: 1px solid rgba(255,180,120,.5);
+    }
+    .modal-shot.quality-poor .quality-pill { display: inline-flex; align-items: center; gap: 5px; }
+    .quality-note {
+      margin: 0 0 8px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: rgba(255,140,66,.12);
+      border: 1px solid rgba(255,140,66,.35);
+      color: #ffc39a;
+      font-size: 12px;
+      display: none;
+    }
+    .quality-note.open { display: block; }
 
     .meta {
       padding: 4px 5px 5px;
@@ -372,7 +405,9 @@
     }
   </style>
 </head>
-<body class="density-s">
+<body class="density-s has-app-nav">
+  {% include "_nav.html" %}
+  <div class="app-main">
   <header class="top">
     <div class="brand">
       <strong>Camera Monitor</strong>
@@ -403,16 +438,6 @@
         <option value="m">Medium</option>
         <option value="l">Large</option>
       </select>
-      {% if not remote_mode %}
-      <div class="links">
-        <a href="/live">Wall</a>
-        <a href="/cameras">Inventory</a>
-      </div>
-      {% else %}
-      <div class="links">
-        <a href="/logout">Sign out</a>
-      </div>
-      {% endif %}
     </div>
   </header>
   <main class="board" id="board">
@@ -430,11 +455,13 @@
           <strong>Preview Error</strong>
           <span>Camera may still be online on the network</span>
         </div>
+        <span class="quality-pill" id="qualityPill">Poor quality</span>
       </div>
       <div class="preview-status" id="previewStatus">
         <span class="ps-dot" aria-hidden="true"></span>
         <span id="previewStatusText">Stored preview ready</span>
       </div>
+      <div class="quality-note" id="qualityNote">Image quality for this camera is not good.</div>
       <div class="modal-head">
         <div style="min-width:0">
           <h2 id="modalTitle">Camera</h2>
@@ -452,8 +479,10 @@
           <a class="ghost" id="historyLink" href="#">Full history</a>
           {% elif live_bridge_enabled or (boot is defined and boot.liveBridgeEnabled) %}
           <button class="ghost" id="checkLive" type="button">Start</button>
+          <a class="ghost" id="historyLink" href="#">Full history</a>
           <span class="ghost" style="opacity:.7;cursor:default;pointer-events:none">Ping / retry need on-site LAN</span>
           {% else %}
+          <a class="ghost" id="historyLink" href="#">Full history</a>
           <span class="ghost" style="opacity:.7;cursor:default;pointer-events:none">LAN actions unavailable remotely</span>
           {% endif %}
           <button class="ghost" id="modalFav" type="button">☆ Favourite</button>
@@ -720,25 +749,162 @@
     function escapeAttr(s) { return escapeHtml(s); }
 
     function isBlankFrame(img) {
+      return assessImageQuality(img).blank;
+    }
+
+    function assessImageQuality(img) {
+      /** Heuristic check: blank / too dark / washed / low contrast / soft. */
+      const result = { ok: true, blank: false, poor: false, reason: "", label: "Good" };
       try {
-        const w = Math.min(24, img.naturalWidth || 0);
-        const h = Math.min(24, img.naturalHeight || 0);
-        if (w < 2 || h < 2) return true;
+        const nw = img.naturalWidth || 0;
+        const nh = img.naturalHeight || 0;
+        if (nw < 8 || nh < 8) {
+          return { ok: false, blank: true, poor: true, reason: "Frame too small or empty", label: "Poor quality" };
+        }
+        const w = Math.min(48, nw);
+        const h = Math.min(48, nh);
         const canvas = document.createElement("canvas");
         canvas.width = w; canvas.height = h;
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
         ctx.drawImage(img, 0, 0, w, h);
         const data = ctx.getImageData(0, 0, w, h).data;
-        let sum = 0, n = 0, dark = 0;
-        for (let i = 0; i < data.length; i += 4) {
+        let sum = 0, sumSq = 0, n = 0, dark = 0, bright = 0, edge = 0;
+        const gray = new Float32Array(w * h);
+        for (let i = 0, p = 0; i < data.length; i += 4, p++) {
           const y = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
-          sum += y; n += 1;
+          gray[p] = y;
+          sum += y; sumSq += y * y; n += 1;
           if (y < 18) dark += 1;
+          if (y > 245) bright += 1;
         }
         const avg = sum / Math.max(1, n);
-        return avg < 14 || dark / Math.max(1, n) > 0.96;
+        const variance = Math.max(0, sumSq / Math.max(1, n) - avg * avg);
+        const std = Math.sqrt(variance);
+        for (let y = 0; y < h - 1; y++) {
+          for (let x = 0; x < w - 1; x++) {
+            const i = y * w + x;
+            const dx = Math.abs(gray[i] - gray[i + 1]);
+            const dy = Math.abs(gray[i] - gray[i + w]);
+            edge += dx + dy;
+          }
+        }
+        const edgeScore = edge / Math.max(1, (w - 1) * (h - 1) * 2);
+        const darkRatio = dark / Math.max(1, n);
+        const brightRatio = bright / Math.max(1, n);
+
+        if (avg < 14 || darkRatio > 0.96) {
+          return { ok: false, blank: true, poor: true, reason: "Blank or nearly black frame", label: "Poor quality" };
+        }
+        if (avg < 28 || darkRatio > 0.85) {
+          return { ok: false, blank: false, poor: true, reason: "Image is too dark", label: "Poor quality" };
+        }
+        if (avg > 235 || brightRatio > 0.88) {
+          return { ok: false, blank: false, poor: true, reason: "Image is washed out / overexposed", label: "Poor quality" };
+        }
+        if (std < 12) {
+          return { ok: false, blank: false, poor: true, reason: "Very low contrast", label: "Poor quality" };
+        }
+        if (edgeScore < 4.5 && std < 28) {
+          return { ok: false, blank: false, poor: true, reason: "Soft / blurry looking frame", label: "Poor quality" };
+        }
+        return result;
       } catch (_) {
-        return false;
+        return result;
+      }
+    }
+
+    const qualityStoreKey = "camImageQualityTags";
+    function loadQualityTags() {
+      try { return JSON.parse(localStorage.getItem(qualityStoreKey) || "{}") || {}; }
+      catch (_) { return {}; }
+    }
+    function saveQualityTag(deviceId, assessment, checkId) {
+      if (!deviceId || !assessment) return;
+      const all = loadQualityTags();
+      if (assessment.poor) {
+        all[deviceId] = {
+          quality: "POOR",
+          reason: assessment.reason || "Image quality is not good",
+          label: assessment.label || "Poor quality",
+          checkId: checkId || null,
+          at: new Date().toISOString(),
+        };
+      } else {
+        // Clear tag when a good frame is confirmed.
+        delete all[deviceId];
+      }
+      localStorage.setItem(qualityStoreKey, JSON.stringify(all));
+    }
+    function applyStoredQualityTags(list) {
+      const all = loadQualityTags();
+      for (const c of list || []) {
+        const tag = all[c.deviceId];
+        if (tag && tag.quality === "POOR") {
+          c.imageQuality = "POOR";
+          c.imageQualityReason = tag.reason;
+          c.imageQualityLabel = tag.label || "Poor quality";
+        }
+      }
+    }
+    applyStoredQualityTags(cameras);
+
+    function markImageQuality(deviceId, assessment, checkId) {
+      const cam = cameras.find(c => c.deviceId === deviceId);
+      if (!cam) return;
+      if (assessment.poor) {
+        cam.imageQuality = "POOR";
+        cam.imageQualityReason = assessment.reason || "Image quality is not good";
+        cam.imageQualityLabel = assessment.label || "Poor quality";
+      } else {
+        cam.imageQuality = "GOOD";
+        cam.imageQualityReason = "";
+        cam.imageQualityLabel = "Good";
+      }
+      saveQualityTag(deviceId, assessment, checkId);
+      // Refresh only this card badge without full paint when possible.
+      board.querySelectorAll(`.cam[data-id="${CSS.escape(deviceId)}"]`).forEach(el => {
+        el.classList.toggle("quality-poor", !!assessment.poor);
+        let mark = el.querySelector(".quality-mark");
+        if (assessment.poor) {
+          if (!mark) {
+            mark = document.createElement("span");
+            mark.className = "quality-mark";
+            mark.textContent = "LQ";
+            mark.title = cam.imageQualityReason || "Poor image quality";
+            const thumb = el.querySelector(".thumb");
+            if (thumb) thumb.appendChild(mark);
+          } else {
+            mark.title = cam.imageQualityReason || "Poor image quality";
+          }
+          const row = el.querySelector(".badge-row");
+          if (row && !row.querySelector(".badge.quality")) {
+            const b = document.createElement("span");
+            b.className = "badge quality";
+            b.textContent = "POOR QUALITY";
+            row.appendChild(b);
+          }
+        } else {
+          if (mark) mark.remove();
+          el.querySelectorAll(".badge.quality").forEach(b => b.remove());
+        }
+      });
+    }
+
+    function showQualityUi(assessment) {
+      const note = document.getElementById("qualityNote");
+      const pill = document.getElementById("qualityPill");
+      const shot = document.getElementById("modalShot");
+      if (!note || !pill || !shot) return;
+      if (assessment && assessment.poor) {
+        shot.classList.add("quality-poor");
+        note.classList.add("open");
+        note.textContent = "Image quality for this camera is not good" +
+          (assessment.reason ? ` — ${assessment.reason}.` : ".");
+        pill.textContent = "Poor quality";
+      } else {
+        shot.classList.remove("quality-poor");
+        note.classList.remove("open");
+        note.textContent = "";
       }
     }
 
@@ -768,14 +934,17 @@
 
     function bindThumb(img, deviceId, networkOnline) {
       img.onload = () => {
-        if (isBlankFrame(img)) {
+        const q = assessImageQuality(img);
+        if (q.blank) {
           if (networkOnline) markPreviewError(deviceId);
           img.hidden = true;
           img.classList.remove("show");
+          markImageQuality(deviceId, q);
           return;
         }
         img.hidden = false;
         img.classList.add("show");
+        // Only tag poor quality when user opens/clicks; grid thumbs stay silent unless already tagged.
       };
       img.onerror = () => {
         img.hidden = true;
@@ -794,21 +963,28 @@
       const missClass = state === "offline" ? "miss offline-miss" : "miss";
       const favOn = isFavourite(c.deviceId);
       const canStart = !remoteMode || liveBridgeEnabled;
+      const poor = c.imageQuality === "POOR";
+      const qualityMark = poor
+        ? `<span class="quality-mark" title="${escapeAttr(c.imageQualityReason || "Image quality is not good")}">LQ</span>`
+        : "";
+      const qualityBadge = poor ? `<span class="badge quality">POOR QUALITY</span>` : "";
       const imgHtml = src
         ? `<img alt="" decoding="async" loading="lazy" fetchpriority="low" data-id="${escapeAttr(c.deviceId)}" src="${escapeAttr(src)}" />`
         : "";
-      return `<div class="cam ${state}${favOn ? " is-fav" : ""}" role="button" tabindex="0" data-id="${c.deviceId}" data-nvr="${escapeAttr(nvrId || c.nvrGroup || "")}" title="${escapeAttr(cameraName(c) + " · " + (c.ipAddress || ""))}">
+      return `<div class="cam ${state}${favOn ? " is-fav" : ""}${poor ? " quality-poor" : ""}" role="button" tabindex="0" data-id="${c.deviceId}" data-nvr="${escapeAttr(nvrId || c.nvrGroup || "")}" title="${escapeAttr(cameraName(c) + " · " + (c.ipAddress || ""))}">
         <div class="thumb">
           ${imgHtml}
           <div class="${missClass}">${missText}</div>
           <button class="fav-btn${favOn ? " on" : ""}" type="button" data-fav="${escapeAttr(c.deviceId)}" title="${favOn ? "Remove favourite" : "Add favourite"}" aria-label="Favourite">${favOn ? "★" : "☆"}</button>
           <span class="dot"></span>
+          ${qualityMark}
         </div>
         <div class="meta">
           <div class="name">${escapeHtml(cameraName(c))}</div>
           <div class="sub">Ch ${escapeHtml(ch)} · ${escapeHtml(c.ipAddress || "")}</div>
           <div class="badge-row">
             <span class="badge">${label(c)}</span>
+            ${qualityBadge}
             ${canStart ? `<button class="start-btn" type="button" data-start="${escapeAttr(c.deviceId)}" title="Start live preview">Start</button>` : ""}
           </div>
         </div>
@@ -897,9 +1073,13 @@
       const rtt = c.lastResponseTimeMs == null ? "—" : `${Math.round(c.lastResponseTimeMs * 10) / 10} ms`;
       const loss = c.lastPacketLossPct == null ? "—" : `${c.lastPacketLossPct}%`;
       const previewLabel = c.previewStatus === "AVAILABLE" ? "Available" : "Error / unavailable";
+      const qualityLabel = c.imageQuality === "POOR"
+        ? ("Not good" + (c.imageQualityReason ? ` (${c.imageQualityReason})` : ""))
+        : (c.imageQuality === "GOOD" ? "Good" : "Not checked yet");
       document.getElementById("facts").innerHTML = [
         fact("Network", label(c.networkStatus || c.status)),
         fact("Preview", previewLabel),
+        fact("Image quality", qualityLabel),
         fact("Overall", label(c)),
         fact("Last ping", c.lastCheckAt ? fmtAbs(c.lastCheckAt) + " (" + fmtRel(c.lastCheckAt) + ")" : "Never"),
         fact("Last successful ping", c.lastSuccessAt ? fmtAbs(c.lastSuccessAt) : "Never"),
@@ -919,18 +1099,44 @@
       const img = document.getElementById("modalImg");
       const fallback = document.getElementById("modalFallback");
       const src = previewUrl(c);
+      showQualityUi(c.imageQuality === "POOR" ? { poor: true, reason: c.imageQualityReason || "" } : { poor: false });
       img.onload = () => {
         setPreviewLoading(false);
-        if (isBlankFrame(img)) {
+        const q = assessImageQuality(img);
+        if (q.blank) {
           img.hidden = true;
           fallback.classList.add("open");
           setPreviewStatus("warn", "Stored preview is blank or invalid");
+          showQualityUi(q);
+          markImageQuality(c.deviceId, q, c.latestImageCheckId);
           if ((c.networkStatus || c.status) === "ONLINE") markPreviewError(c.deviceId);
           return;
         }
         img.hidden = false;
         fallback.classList.remove("open");
-        if (!liveActive) setPreviewStatus("ok", "<strong>Stored preview loaded</strong>");
+        markImageQuality(c.deviceId, q, c.latestImageCheckId);
+        showQualityUi(q);
+        if (q.poor) {
+          setPreviewStatus("warn", "<strong>Image quality is not good</strong> — " + escapeHtml(q.reason || "tagged as poor quality"));
+        } else if (!liveActive) {
+          setPreviewStatus("ok", "<strong>Stored preview loaded</strong>");
+        }
+        // Refresh facts quality line
+        const cam = cameras.find(x => x.deviceId === c.deviceId) || c;
+        const ql = cam.imageQuality === "POOR"
+          ? ("Not good" + (cam.imageQualityReason ? ` (${cam.imageQualityReason})` : ""))
+          : "Good";
+        const facts = document.getElementById("facts");
+        if (facts) {
+          const nodes = facts.querySelectorAll(".fact");
+          nodes.forEach(node => {
+            const em = node.querySelector("em");
+            if (em && em.textContent === "Image quality") {
+              const strong = node.querySelector("strong");
+              if (strong) strong.textContent = ql;
+            }
+          });
+        }
       };
       img.onerror = () => {
         setPreviewLoading(false);
@@ -1018,7 +1224,14 @@
             main.onload = () => {
               setPreviewLoading(false);
               main.hidden = false;
-              setPreviewStatus("ok", "<strong>Historical frame loaded</strong>");
+              const q = assessImageQuality(main);
+              markImageQuality(deviceId, q, null);
+              showQualityUi(q);
+              if (q.poor) {
+                setPreviewStatus("warn", "<strong>Image quality is not good</strong> — " + escapeHtml(q.reason || "tagged as poor quality"));
+              } else {
+                setPreviewStatus("ok", "<strong>Historical frame loaded</strong>");
+              }
             };
             main.onerror = () => {
               setPreviewLoading(false);
@@ -1262,13 +1475,15 @@
     q.addEventListener("input", () => paint());
     document.getElementById("sort").addEventListener("change", () => paint());
     document.getElementById("density").addEventListener("change", (e) => {
-      document.body.className = "density-" + e.target.value;
+      document.body.classList.remove("density-s", "density-m", "density-l");
+      document.body.classList.add("density-" + e.target.value);
       localStorage.setItem("camDensity", e.target.value);
     });
     const saved = localStorage.getItem("camDensity");
     if (saved) {
       document.getElementById("density").value = saved;
-      document.body.className = "density-" + saved;
+      document.body.classList.remove("density-s", "density-m", "density-l");
+      document.body.classList.add("density-" + saved);
     }
 
     // Drop stale NVR filter if that NVR no longer exists
@@ -1328,6 +1543,7 @@
           (c.displayStatus || c.status) + "|" + (c.lastCheckAt || "") + "|" + (c.previewStatus || "") + "|" + (c.previewVersion || ""),
         ]));
         cameras = data.cameras || [];
+        applyStoredQualityTags(cameras);
         nvrs = data.nvrs || [];
         boot.publishedAt = data.publishedAt || data.updatedAt || boot.publishedAt;
         boot.worker = {
@@ -1350,5 +1566,6 @@
     paint();
     setInterval(poll, 30000);
   </script>
+  </div>
 </body>
 </html>
