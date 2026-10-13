@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from flask import (
     Flask,
     Response,
+    abort,
     flash,
     jsonify,
     redirect,
@@ -876,7 +877,13 @@ def warnings_page():
 
 @app.get("/media/<path:subpath>")
 def media(subpath: str):
-    return send_from_directory(Path(__file__).resolve().parent.parent / "data", subpath)
+    # Only serve reference images of devices this user may see; never the db/state files in data/.
+    wanted = subpath.replace("\\", "/")
+    if not wanted.startswith("uploads/devices/"):
+        abort(404)
+    if not any(d.get("referenceImage") == wanted for d in _scoped_devices()):
+        abort(404)
+    return send_from_directory(ROOT / "data", wanted)
 
 
 def main() -> None:

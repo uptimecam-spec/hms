@@ -35,6 +35,7 @@ from src.access_control import (
 )
 from src.bunny_storage import (
     bunny_readable,
+    bunny_settings,
     check_image_object_key,
     download_bytes,
     download_json,
@@ -650,6 +651,34 @@ def healthz():
         {
             "ok": True,
             "bunny": bunny_readable(),
+            "bunnyCheck": _bunny_diagnostics(),
             "liveBridge": cloud_live_bridge_ready(),
         }
     )
+
+
+def _bunny_diagnostics() -> dict[str, Any]:
+    """Which zone/endpoint is in use and what Bunny answers for the status file (no secrets)."""
+    cfg = bunny_settings()
+    access = cfg["read_password"] or cfg["password"]
+    out: dict[str, Any] = {
+        "zone": cfg["zone"],
+        "endpoint": cfg["endpoint"],
+        "readKeyLen": len(cfg["read_password"]),
+        "writeKeyLen": len(cfg["password"]),
+        "statusFileHttp": None,
+    }
+    if not (cfg["zone"] and access):
+        return out
+    try:
+        # Bunny Storage rejects HEAD; stream a GET and close without reading the body.
+        with requests.get(
+            f'{cfg["endpoint"]}/{cfg["zone"]}/{STATUS_KEY}',
+            headers={"AccessKey": access},
+            timeout=10,
+            stream=True,
+        ) as response:
+            out["statusFileHttp"] = response.status_code
+    except requests.RequestException as exc:
+        out["statusFileHttp"] = f"error: {type(exc).__name__}"
+    return out

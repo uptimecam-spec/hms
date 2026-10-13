@@ -12,20 +12,15 @@ __pycache__/
 .vercel
 .vercelignore.local
 
-data/state.json
-data/snapshots/
-data/devices.db
-data/devices.db-*
-data/*.db
-data/*.db-*
-data/worker_heartbeat.txt
-data/scheduler_state.json
-data/check_images/
-data/check-images/
-data/uploads/
+# Runtime data (db, snapshots, favorites, state) never goes in git
+data/
 uploads/
 check-images/
 check_images/
+
+# Credentials / local inventories
+passkey*.txt
+ip list.xlsx
 
 *.log
 .DS_Store
