@@ -531,8 +531,6 @@
     <div class="chips" id="chips">
       <button class="chip online" data-filter="ONLINE">Online <b id="nOn">0</b></button>
       <button class="chip offline" data-filter="OFFLINE">Offline <b id="nOff">0</b></button>
-      <button class="chip preview" data-filter="PREVIEW_UNAVAILABLE">Preview Error <b id="nPrev">0</b></button>
-      <button class="chip frozen" data-filter="FROZEN">Frozen <b id="nFro">0</b></button>
       <button class="chip fav" data-filter="FAVOURITES">Favourites <b id="nFav">0</b></button>
       <button class="chip all active" data-filter="">All <b id="nAll">0</b></button>
       <span class="chip-sep" aria-hidden="true"></span>
@@ -551,8 +549,8 @@
         <div class="shot-loading" aria-hidden="true"><div class="shot-spinner"></div></div>
         <img id="modalImg" alt="" hidden />
         <div class="modal-fallback" id="modalFallback">
-          <strong>Preview Error</strong>
-          <span>Camera may still be online on the network</span>
+          <strong>Offline</strong>
+          <span>No image from this camera</span>
         </div>
         <span class="quality-pill" id="qualityPill">Poor quality</span>
       </div>
@@ -751,18 +749,27 @@
       if (sec < 86400) return Math.floor(sec / 3600) + "h ago";
       return fmtAbs(s);
     }
-    function cls(c) {
+    // Single status rule for chips, counts, cards and NVR headers:
+    // a camera whose preview fails or whose feed is frozen is not usable, so it counts as Offline.
+    function bucket(c) {
+      const net = c.networkStatus || c.status;
       const display = c.displayStatus || c.status;
-      if (display === "FROZEN" || c.frameFrozen) return "frozen";
-      if (display === "ONLINE_PREVIEW_UNAVAILABLE") return "preview-miss";
-      if ((c.networkStatus || c.status) === "ONLINE") return "online";
-      if ((c.networkStatus || c.status) === "OFFLINE") return "offline";
+      if (net === "OFFLINE" || display === "OFFLINE") return "OFFLINE";
+      if (display === "ONLINE_PREVIEW_UNAVAILABLE" || display === "FROZEN" || c.frameFrozen) return "OFFLINE";
+      if (net === "ONLINE" && c.previewStatus === "UNAVAILABLE") return "OFFLINE";
+      if (net === "ONLINE") return "ONLINE";
+      return "PENDING";
+    }
+    function cls(c) {
+      const b = bucket(c);
+      if (b === "ONLINE") return "online";
+      if (b === "OFFLINE") return "offline";
       return "pending";
     }
     function label(c) {
+      if (typeof c !== "string" && bucket(c) === "OFFLINE") return "OFFLINE";
       const key = typeof c === "string" ? c : (c.displayStatus || c.status);
-      if (key === "FROZEN") return "FROZEN ❄ RESTART";
-      if (key === "ONLINE_PREVIEW_UNAVAILABLE") return "PREVIEW ERR";
+      if (key === "FROZEN" || key === "ONLINE_PREVIEW_UNAVAILABLE") return "OFFLINE";
       if (key === "ONLINE") return "ONLINE";
       if (key === "OFFLINE") return "OFFLINE";
       if (key === "WARNING") return "WARNING";
@@ -782,12 +789,8 @@
       const net = c.networkStatus || c.status;
       const display = c.displayStatus || c.status;
       if (filter === "FAVOURITES") return isFavourite(c.deviceId);
-      if (filter === "FROZEN") return display === "FROZEN" || !!c.frameFrozen;
-      if (filter === "PENDING") return net !== "ONLINE" && net !== "OFFLINE";
-      if (filter === "PREVIEW_UNAVAILABLE") return display === "ONLINE_PREVIEW_UNAVAILABLE";
-      if (filter === "ONLINE") return net === "ONLINE" && display !== "FROZEN" && !c.frameFrozen;
-      if (filter === "OFFLINE") return net === "OFFLINE";
-      if (filter) return net === filter;
+      if (filter === "PENDING" || filter === "ONLINE" || filter === "OFFLINE") return bucket(c) === filter;
+      if (filter) return net === filter || display === filter;
       return true;
     }
     function matchesSearch(c) {
@@ -799,9 +802,7 @@
     }
     function statusRank(c) {
       const display = c.displayStatus || c.status;
-      if (display === "FROZEN" || !!c.frameFrozen) return 0.5;
-      if (display === "OFFLINE" || (c.networkStatus || c.status) === "OFFLINE") return 0;
-      if (display === "ONLINE_PREVIEW_UNAVAILABLE" || ((c.networkStatus || c.status) === "ONLINE" && c.previewStatus === "UNAVAILABLE")) return 1;
+      if (bucket(c) === "OFFLINE") return 0;
       if (display === "WARNING") return 2;
       if (display === "UNKNOWN" || display === "UNDER_MAINTENANCE") return 3;
       if ((c.networkStatus || c.status) === "ONLINE") return 4;
@@ -811,7 +812,7 @@
       const sortEl = document.getElementById("sort");
       const sort = sortEl ? sortEl.value : "channel";
       list.sort((a, b) => {
-        // Always: Offline → Preview Error → Online (then other)
+        // Always: Offline → Online (then other)
         const byStatus = statusRank(a) - statusRank(b);
         if (byStatus) return byStatus;
         if (sort === "name") return cameraName(a).localeCompare(cameraName(b));
@@ -1023,14 +1024,19 @@
         previewAvailable: false,
         previewVersion: null,
         displayStatus: "ONLINE_PREVIEW_UNAVAILABLE",
-        displayStatusLabel: "Preview Error",
+        displayStatusLabel: "Offline",
       });
       board.querySelectorAll(`.cam[data-id="${CSS.escape(deviceId)}"]`).forEach(el => {
         if (el.classList.contains("offline")) return;
         el.classList.remove("online");
-        el.classList.add("preview-miss");
+        el.classList.add("offline");
         const badge = el.querySelector(".badge");
-        if (badge) badge.textContent = "PREVIEW ERR";
+        if (badge) badge.textContent = "OFFLINE";
+        const miss = el.querySelector(".miss");
+        if (miss) {
+          miss.textContent = "Offline";
+          miss.classList.add("offline-miss");
+        }
         const img = el.querySelector("img");
         if (img) {
           img.removeAttribute("src");
@@ -1099,6 +1105,9 @@
     }
 
     function nvrSectionHtml(group) {
+      const all = group.cameras || [];
+      const nOnline = all.filter(c => bucket(c) === "ONLINE").length;
+      const nOffline = all.filter(c => bucket(c) === "OFFLINE").length;
       return `<section class="nvr-section" data-nvr="${escapeAttr(group.nvrId)}">
         <header class="nvr-head">
           <div class="nvr-title">
@@ -1106,10 +1115,8 @@
             <span>${group.total ?? group.cameras.length} cameras${group.nvrHost ? " · " + escapeHtml(group.nvrHost) : ""}</span>
           </div>
           <div class="nvr-stats">
-            <span class="stat online"><i></i>${group.online ?? 0} Online</span>
-            <span class="stat offline"><i></i>${group.offline ?? 0} Offline</span>
-            <span class="stat frozen"><i></i>${group.frozen ?? 0} Frozen</span>
-            <span class="stat preview"><i></i>${group.previewUnavailable ?? 0} Preview Error</span>
+            <span class="stat online"><i></i>${nOnline} Online</span>
+            <span class="stat offline"><i></i>${nOffline} Offline</span>
           </div>
         </header>
         <div class="grid">${group.cameras.map(c => cardHtml(c, group.nvrId)).join("")}</div>
@@ -1117,25 +1124,13 @@
     }
 
     function paint(changedIds) {
-      const counts = { ALL: cameras.length, ONLINE: 0, OFFLINE: 0, FROZEN: 0, PREVIEW_UNAVAILABLE: 0, UNKNOWN: 0 };
-      for (const c of cameras) {
-        const net = c.networkStatus || c.status;
-        const display = c.displayStatus || c.status;
-        if (display === "FROZEN" || c.frameFrozen) {
-          counts.FROZEN++;
-        } else if (net === "ONLINE") {
-          counts.ONLINE++;
-          if (display === "ONLINE_PREVIEW_UNAVAILABLE") counts.PREVIEW_UNAVAILABLE++;
-        } else if (net === "OFFLINE") counts.OFFLINE++;
-        else counts.UNKNOWN++;
-      }
+      const counts = { ALL: cameras.length, ONLINE: 0, OFFLINE: 0, PENDING: 0 };
+      for (const c of cameras) counts[bucket(c)]++;
       document.getElementById("nAll").textContent = counts.ALL;
       document.getElementById("nOn").textContent = counts.ONLINE;
       document.getElementById("nOff").textContent = counts.OFFLINE;
-      document.getElementById("nFro").textContent = counts.FROZEN;
-      document.getElementById("nPrev").textContent = counts.PREVIEW_UNAVAILABLE;
       const nPend = document.getElementById("nPend");
-      if (nPend) nPend.textContent = counts.UNKNOWN;
+      if (nPend) nPend.textContent = counts.PENDING;
       updateFavCount();
       if (remoteMode) {
         syncRemoteSubline();
@@ -1181,9 +1176,9 @@
       document.getElementById("modalIp").textContent = c.ipAddress;
       const rtt = c.lastResponseTimeMs == null ? "—" : `${Math.round(c.lastResponseTimeMs * 10) / 10} ms`;
       const loss = c.lastPacketLossPct == null ? "—" : `${c.lastPacketLossPct}%`;
-      const previewLabel = (c.displayStatus === "FROZEN" || c.frameFrozen)
-        ? "Frozen ❄ — please restart camera"
-        : (c.previewStatus === "AVAILABLE" ? "Available" : "Error / unavailable");
+      const previewLabel = (c.previewStatus === "AVAILABLE" && bucket(c) !== "OFFLINE")
+        ? "Available"
+        : "Error / unavailable";
       const qualityLabel = c.imageQuality === "POOR"
         ? ("Not good" + (c.imageQualityReason ? ` (${c.imageQualityReason})` : ""))
         : (c.imageQuality === "GOOD" ? "Good" : "Not checked yet");
@@ -1274,10 +1269,9 @@
     function histBadge(item) {
       const overall = typeof item === "string" ? item : item.overallStatus;
       const err = typeof item === "string" ? "" : (item.previewError || "");
-      if (err.indexOf("frame identical") === 0) return '<span class="hist-badge frozen">Frozen ❄ Restart</span>';
-      if (overall === "ONLINE") return '<span class="hist-badge online">Online</span>';
-      if (overall === "OFFLINE") return '<span class="hist-badge offline">Offline</span>';
-      return '<span class="hist-badge preview">Preview Error</span>';
+      // Frozen feeds and failed previews count as Offline, same as the board.
+      if (overall === "ONLINE" && !err) return '<span class="hist-badge online">Online</span>';
+      return '<span class="hist-badge offline">Offline</span>';
     }
 
     async function loadHistory(deviceId) {
@@ -1514,18 +1508,6 @@
             group.cameras[j] = { ...group.cameras[j], ...row, nvrGroup: group.nvrId, nvrLabel: group.nvrLabel };
           }
         }
-        group.online = group.cameras.filter(
-          c => (c.networkStatus || c.status) === "ONLINE"
-            && (c.displayStatus || c.status) !== "FROZEN"
-            && !c.frameFrozen
-        ).length;
-        group.offline = group.cameras.filter(c => (c.networkStatus || c.status) === "OFFLINE").length;
-        group.frozen = group.cameras.filter(
-          c => (c.displayStatus || c.status) === "FROZEN" || !!c.frameFrozen
-        ).length;
-        group.previewUnavailable = group.cameras.filter(
-          c => (c.displayStatus || c.status) === "ONLINE_PREVIEW_UNAVAILABLE"
-        ).length;
       }
     }
 
@@ -1559,7 +1541,7 @@
             previewStatus: "UNAVAILABLE",
             previewAvailable: false,
             displayStatus: net === "ONLINE" ? "ONLINE_PREVIEW_UNAVAILABLE" : net,
-            displayStatusLabel: net === "ONLINE" ? "Preview Error" : label(net),
+            displayStatusLabel: net === "ONLINE" ? "Offline" : label(net),
           });
         }
         paint(new Set([deviceId]));
