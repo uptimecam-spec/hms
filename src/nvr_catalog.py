@@ -172,6 +172,12 @@ def sync_nvr_cameras_to_db() -> dict[str, int]:
         }
         existing = _get_device_by_ip(ip)
         canonical_id = existing["deviceId"] if existing else _device_id_for_ip(ip)
+        auto_location = f"NVR {nvr_label}"
+        current_location = ((existing or {}).get("location") or "").strip()
+        if current_location and not current_location.startswith("NVR "):
+            payload["location"] = current_location
+        else:
+            payload["location"] = auto_location
         if existing:
             update_device(
                 canonical_id,
@@ -197,12 +203,67 @@ def sync_nvr_cameras_to_db() -> dict[str, int]:
     return summary
 
 
-def ensure_nvr_sync() -> dict[str, int] | None:
-    """Import NVR DATA once per process, and only when the camera list is still empty.
+def add_missing_nvr_cameras() -> dict[str, int]:
+    """Insert NVR DATA cameras whose IP is not already in Device Master.
 
-    A full upsert rewrites every camera and blocks the status page while the
-    worker is also writing ping results. Cameras already in the database stay
-    put; use POST /api/sync-nvr to reload the export files.
+    Existing camera rows are left unchanged. New exports, including screenshot
+    lists, are add-ons.
+    """
+    init_db()
+    raw = load_nvr_cameras()
+    by_ip: dict[str, list[NvrCameraRow]] = {}
+    for row in raw:
+        by_ip.setdefault(row.ip, []).append(row)
+
+    created = skipped = 0
+    for ip, group in by_ip.items():
+        if _get_device_by_ip(ip):
+            skipped += 1
+            continue
+        best = _pick_best_row(group)
+        nvr_ids = sorted({r.nvr_source for r in group})
+        nvr_label = nvr_ids[0] if len(nvr_ids) == 1 else ",".join(nvr_ids)
+        create_device(
+            {
+                "deviceId": _device_id_for_ip(ip),
+                "deviceName": best.display_name,
+                "deviceType": "CAMERA",
+                "ipAddress": ip,
+                "nvrId": nvr_label,
+                "cameraChannel": best.remote_channel or "1",
+                "manufacturer": best.manufacturer,
+                "servicePort": best.service_port,
+                "rtspUrl": "",
+                "location": f"NVR {nvr_label}",
+                "status": "UNKNOWN",
+                "isActive": True,
+                "checkIntervalSec": 3600,
+            }
+        )
+        created += 1
+
+    summary = {
+        "parsed": len(raw),
+        "unique_ips": len(by_ip),
+        "created": created,
+        "updated": 0,
+        "skipped": skipped,
+    }
+    log.info(
+        "NVR add-on: %s rows, %s unique IPs (%s created, %s already present)",
+        summary["parsed"],
+        summary["unique_ips"],
+        created,
+        skipped,
+    )
+    return summary
+
+
+def ensure_nvr_sync() -> dict[str, int] | None:
+    """Import NVR DATA once per process.
+
+    An empty camera list is loaded in full. When cameras are already present,
+    only new IPs are inserted. Existing rows are not rewritten.
     """
     global _nvr_synced
     if _nvr_synced:
@@ -215,6 +276,6 @@ def ensure_nvr_sync() -> dict[str, int] | None:
             "SELECT COUNT(*) AS c FROM devices WHERE deviceType = 'CAMERA' AND isActive = 1"
         ).fetchone()["c"]
     if existing:
-        log.info("NVR catalog already loaded (%s cameras); skipping startup rewrite", existing)
-        return None
+        log.info("NVR catalog has %s cameras; adding missing IPs only", existing)
+        return add_missing_nvr_cameras()
     return sync_nvr_cameras_to_db()

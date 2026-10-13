@@ -14,6 +14,7 @@ STATUS_LABELS = {
     "WARNING": "Warning",
     "UNDER_MAINTENANCE": "Maintenance",
     "ONLINE_PREVIEW_UNAVAILABLE": "Preview Error",
+    "FROZEN": "Feed Frozen — Restart Camera",
 }
 
 _membership_cache: dict[str, Any] | None = None
@@ -121,9 +122,20 @@ def preview_status_for(device: dict[str, Any]) -> tuple[str, int | None]:
     return "UNAVAILABLE", None
 
 
-def display_status_for(network_status: str, preview_status: str) -> str:
-    """Overall camera status keeps network health; preview is a separate signal."""
+def is_frame_frozen(device: dict[str, Any]) -> bool:
+    """Persistent frozen-feed flag, owned only by new-code worker checks."""
+    return bool((device.get("frameFrozenAt") or "").strip())
+
+
+def display_status_for(network_status: str, preview_status: str, *, frozen: bool = False) -> str:
+    """Overall camera status keeps network health; preview is a separate signal.
+
+    A frozen feed (identical frames) gets its own state so the grid can badge
+    it instead of silently showing a stale-but-AVAILABLE image.
+    """
     net = (network_status or "UNKNOWN").upper()
+    if net == "ONLINE" and frozen:
+        return "FROZEN"
     if net == "ONLINE" and preview_status == "UNAVAILABLE":
         return "ONLINE_PREVIEW_UNAVAILABLE"
     return net
@@ -133,10 +145,12 @@ def camera_status_row(
     device: dict[str, Any],
     *,
     nvr_group: str | None = None,
+    frozen: bool = False,
 ) -> dict[str, Any]:
     st = (device.get("status") or "UNKNOWN").upper()
     preview, preview_version = preview_status_for(device)
-    display = display_status_for(st, preview)
+    frozen = frozen or is_frame_frozen(device)
+    display = display_status_for(st, preview, frozen=frozen)
     groups = nvr_groups_for_device(device)
     primary = nvr_group or (groups[0] if groups else "Unknown")
     channels = _catalog_channels().get(primary) or {}
@@ -157,6 +171,7 @@ def camera_status_row(
         "previewStatus": preview,
         "previewAvailable": preview == "AVAILABLE",
         "previewVersion": preview_version,
+        "frameFrozen": bool(frozen),
         "displayStatus": display,
         "displayStatusLabel": status_label(display),
         "isActive": bool(device.get("isActive")),
@@ -182,10 +197,11 @@ def camera_status_row(
 
 
 def _sort_key(cam: dict[str, Any]) -> tuple:
-    """Offline first, then preview error, then online; channel within each band."""
+    """Offline first, then frozen feed, then preview error, then online; channel within each band."""
     net = (cam.get("networkStatus") or cam.get("status") or "UNKNOWN").upper()
     preview = (cam.get("previewStatus") or "").upper()
     display = (cam.get("displayStatus") or "").upper()
+    frozen = bool(cam.get("frameFrozen")) or display == "FROZEN"
     if net == "OFFLINE" or display == "OFFLINE":
         band = 0
     elif net == "ONLINE" and (preview == "UNAVAILABLE" or display == "ONLINE_PREVIEW_UNAVAILABLE"):
@@ -200,18 +216,27 @@ def _sort_key(cam: dict[str, Any]) -> tuple:
     except (TypeError, ValueError):
         channel_n = 10_000
     name = (cam.get("displayName") or cam.get("deviceName") or "").lower()
-    return (band, channel_n, name, cam.get("ipAddress") or "")
+    return (band, 0 if frozen else 1, channel_n, name, cam.get("ipAddress") or "")
 
 
 def _nvr_summary(nvr_id: str, cameras: list[dict[str, Any]]) -> dict[str, Any]:
-    online = sum(1 for c in cameras if c["networkStatus"] == "ONLINE")
+    online = sum(
+        1
+        for c in cameras
+        if c["networkStatus"] == "ONLINE" and not bool(c.get("frameFrozen"))
+    )
     offline = sum(1 for c in cameras if c["networkStatus"] == "OFFLINE")
+    frozen = sum(
+        1
+        for c in cameras
+        if c["networkStatus"] == "ONLINE" and bool(c.get("frameFrozen"))
+    )
     preview_unavailable = sum(
         1
         for c in cameras
-        if c["networkStatus"] == "ONLINE" and c["previewStatus"] == "UNAVAILABLE"
+        if c.get("displayStatus") == "ONLINE_PREVIEW_UNAVAILABLE"
     )
-    unknown = len(cameras) - online - offline
+    unknown = len(cameras) - online - offline - frozen
     host = next((c.get("nvrHost") for c in cameras if c.get("nvrHost")), None)
     if not host:
         parts = nvr_id.split(".")
@@ -224,6 +249,7 @@ def _nvr_summary(nvr_id: str, cameras: list[dict[str, Any]]) -> dict[str, Any]:
         "total": len(cameras),
         "online": online,
         "offline": offline,
+        "frozen": frozen,
         "previewUnavailable": preview_unavailable,
         "unknown": unknown,
         "cameras": cameras,
@@ -241,22 +267,33 @@ def build_camera_status_payload(
         rows = [d for d in devices if d.get("isActive")]
 
     cameras = [camera_status_row(d) for d in rows]
-    online = sum(1 for c in cameras if c["networkStatus"] == "ONLINE")
+    online = sum(
+        1
+        for c in cameras
+        if c["networkStatus"] == "ONLINE" and not bool(c.get("frameFrozen"))
+    )
     offline = sum(1 for c in cameras if c["networkStatus"] == "OFFLINE")
+    frozen = sum(
+        1
+        for c in cameras
+        if c["networkStatus"] == "ONLINE" and bool(c.get("frameFrozen"))
+    )
     preview_unavailable = sum(
         1
         for c in cameras
-        if c["networkStatus"] == "ONLINE" and c["previewStatus"] == "UNAVAILABLE"
+        if c.get("displayStatus") == "ONLINE_PREVIEW_UNAVAILABLE"
     )
-    unknown = len(cameras) - online - offline
+    unknown = len(cameras) - online - offline - frozen
 
     grouped: dict[str, list[dict[str, Any]]] = {}
     for device in rows:
         for nvr_id in nvr_groups_for_device(device):
-            grouped.setdefault(nvr_id, []).append(camera_status_row(device, nvr_group=nvr_id))
+            grouped.setdefault(nvr_id, []).append(
+                camera_status_row(device, nvr_group=nvr_id)
+            )
 
     nvrs: list[dict[str, Any]] = []
-    for nvr_id in sorted(grouped.keys(), key=lambda x: [int(p) if p.isdigit() else p for p in x.split(".")]):
+    for nvr_id in sorted(grouped.keys(), key=lambda x: [(0, int(p), "") if p.isdigit() else (1, 0, p) for p in str(x).split(".")]):
         cams = sorted(grouped[nvr_id], key=_sort_key)
         nvrs.append(_nvr_summary(nvr_id, cams))
 
@@ -265,6 +302,7 @@ def build_camera_status_payload(
             "total": len(cameras),
             "online": online,
             "offline": offline,
+            "frozen": frozen,
             "previewUnavailable": preview_unavailable,
             "unknown": unknown,
             "nvrCount": len(nvrs),

@@ -1,0 +1,13 @@
+IP Address,Port,Remote Channel,CAM NAME,Manufacturer,User Name,Password,Encryption,Link Info
+192.168.6.100,25001,1,65 First Flr B6,Private,admin,,0,1
+192.168.6.90,25001,1,66 First Flr 07,Private,admin,,0,1
+192.168.6.111,80,1,2,ONVIF,admin,,0,1
+192.168.6.119,80,1,58 First Flr,ONVIF,admin,,0,1
+192.168.6.209,25001,1,69 First Flr,Private,admin,,0,1
+192.168.6.113,25001,1,70 First Flr,Private,admin,,0,1
+192.168.6.112,25001,1,71 First Flr,Private,admin,,0,1
+192.168.6.110,25001,1,72 Sec Flr 8,Private,admin,,0,1
+192.168.4.124,80,1,7,ONVIF,admin,,0,1
+192.168.6.114,25001,1,74 Sec Flr 02,Private,admin,,0,1
+192.168.6.99,25001,1,75 Sec Flr 03,Private,admin,,0,1
+192.168.4.123,80,1,6,ONVIF,admin,,0,1

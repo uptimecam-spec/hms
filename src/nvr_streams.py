@@ -1,4 +1,4 @@
-"""Discover NVR channels and open camera previews without exposing credentials."""
+"""Camera stream helpers. Inventory may group by NVR export; images never log into an NVR."""
 
 from __future__ import annotations
 
@@ -29,6 +29,11 @@ AUTH_RETRY_BUFFER_SEC = 600.0
 
 
 def login_attempts() -> list[tuple[str, str]]:
+    """Credentials for direct camera HTTP/RTSP auth.
+
+    Env names keep the historical NVR_* prefix. These pairs must only be used
+    against camera IPs, never against an NVR as an image login service.
+    """
     from dotenv import load_dotenv
 
     load_dotenv(ROOT / ".env", override=True)
@@ -136,7 +141,7 @@ def _auth_for(host: str) -> HTTPDigestAuth | None:
             with _auth_lock:
                 _auth_cache[host] = (auth, user)
                 _auth_failed.pop(host, None)
-            log.info("NVR %s authenticated as %s", host, user)
+            log.info("Camera %s authenticated as %s", host, user)
             return auth
         if status == 403:
             # Digest accepted this credential but the device refused it — almost
@@ -145,7 +150,7 @@ def _auth_for(host: str) -> HTTPDigestAuth | None:
             with _auth_lock:
                 _auth_failed[host] = time.monotonic() + AUTH_RETRY_BUFFER_SEC
             log.warning(
-                "NVR %s accepted %s but refused it (status 403 — likely account "
+                "Camera %s accepted %s but refused it (status 403 — likely account "
                 "lockout); backing off %.0f min",
                 host,
                 user,
@@ -155,7 +160,7 @@ def _auth_for(host: str) -> HTTPDigestAuth | None:
     with _auth_lock:
         _auth_failed[host] = time.monotonic() + AUTH_RETRY_BUFFER_SEC
     log.warning(
-        "NVR %s did not accept configured logins; retrying in %.0f min",
+        "Camera %s did not accept configured logins; retrying in %.0f min",
         host,
         AUTH_RETRY_BUFFER_SEC / 60,
     )
@@ -163,7 +168,11 @@ def _auth_for(host: str) -> HTTPDigestAuth | None:
 
 
 def fetch_nvr_channels(host: str) -> dict[str, tuple[str, int]]:
-    """Return camera IP -> (nvr host, 1-based channel) from the live NVR."""
+    """Deprecated: live NVR login for channel maps.
+
+    Kept for rare offline diagnostics. Do not call from image capture or
+    startup discovery — use targets_from_exports() instead.
+    """
     auth = _auth_for(host)
     if auth is None:
         return {}
@@ -203,18 +212,14 @@ def fetch_nvr_channels(host: str) -> dict[str, tuple[str, int]]:
 
 
 def discover_stream_targets() -> int:
-    """Load export channels, then refresh them from each live NVR."""
+    """Map cameras from NVR DATA exports only.
+
+    Does not log into any NVR. Channel grouping stays for inventory; image
+    capture always uses the camera IP directly.
+    """
     mapping = targets_from_exports()
-    hosts = sorted({host for host, _channel in mapping.values()})
-    for host in hosts:
-        try:
-            live = fetch_nvr_channels(host)
-        except Exception:
-            log.exception("NVR %s discovery failed", host)
-            continue
-        mapping.update(live)
     updated = assign_stream_targets(mapping)
-    log.info("Stream targets saved for %s cameras", updated)
+    log.info("Stream targets saved for %s cameras (export map only; no NVR login)", updated)
     return updated
 
 
@@ -226,36 +231,61 @@ def ensure_stream_discovery() -> None:
     threading.Thread(target=discover_stream_targets, name="nvr-discovery", daemon=True).start()
 
 
-def build_rtsp_url(host: str, channel: int, *, direct_camera: bool) -> str | None:
-    """Dahua/CP Plus realmonitor URL. Caller must not log or return this value."""
+# Dahua/CP Plus: subtype 0 is the main stream. subtype 1 is the extra/sub
+# stream (often CIF or D1). Serving that and letting the browser scale it up
+# is what makes a preview look blurred. Previews always ask for the main stream.
+MAIN_STREAM_SUBTYPE = 0
+
+
+def stream_query(channel: int, *, direct_camera: bool, subtype: int = MAIN_STREAM_SUBTYPE) -> str:
+    """Realmonitor/snapshot query. subtype 0 is the main picture; 1 is the extra stream."""
+    picture_channel = 1 if direct_camera else int(channel)
+    return f"channel={picture_channel}&subtype={int(subtype)}"
+
+
+def build_rtsp_url(
+    host: str, channel: int, *, direct_camera: bool, subtype: int = MAIN_STREAM_SUBTYPE
+) -> str | None:
+    """Camera realmonitor URL. Pass the camera IP and direct_camera=True for previews.
+
+    Caller must not log or return this value. Do not point host at an NVR for images.
+    """
+    if not direct_camera:
+        log.warning("build_rtsp_url called without direct_camera; refusing NVR-style channel URL")
+        return None
     attempts = login_attempts()
     if not attempts:
         return None
     user, password = attempts[0]
     auth = f"{quote(user, safe='')}:{quote(password, safe='')}@"
-    if direct_camera:
-        query = "channel=1&subtype=1"
-    else:
-        query = f"channel={int(channel)}&subtype=1"
-    return f"rtsp://{auth}{host}:554/cam/realmonitor?{query}"
+    return (
+        f"rtsp://{auth}{host}:554/cam/realmonitor?"
+        f"{stream_query(channel, direct_camera=True, subtype=subtype)}"
+    )
 
 
-def http_snapshot(host: str, channel: int) -> bytes | None:
+def http_snapshot(host: str, channel: int = 1) -> bytes | None:
+    """JPEG from a camera IP. Callers must pass the camera address, never an NVR."""
     auth = _auth_for(host)
     if auth is None:
         return None
-    response = _request(host, f"/cgi-bin/snapshot.cgi?channel={int(channel)}", auth, 8)
-    if response is None or not response.content.startswith(b"\xff\xd8"):
-        return None
-    return response.content
+    paths = (
+        f"/cgi-bin/snapshot.cgi?{stream_query(channel, direct_camera=True)}",
+        f"/cgi-bin/snapshot.cgi?channel={int(channel)}",
+    )
+    for path in paths:
+        response = _request(host, path, auth, 8)
+        if response is not None and response.content.startswith(b"\xff\xd8"):
+            return response.content
+    return None
 
 
-def http_mjpeg_frame(host: str, channel: int) -> bytes | None:
-    """First JPEG from a Dahua MJPEG stream when snapshot.cgi is unsupported."""
+def http_mjpeg_frame(host: str, channel: int = 1, *, subtype: int = MAIN_STREAM_SUBTYPE) -> bytes | None:
+    """First JPEG from a camera MJPEG stream when snapshot.cgi is unsupported."""
     auth = _auth_for(host)
     if auth is None:
         return None
-    path = f"/cgi-bin/mjpg/video.cgi?channel={int(channel)}&subtype=1"
+    path = f"/cgi-bin/mjpg/video.cgi?{stream_query(channel, direct_camera=True, subtype=subtype)}"
     for scheme in ("http", "https"):
         response = None
         try:

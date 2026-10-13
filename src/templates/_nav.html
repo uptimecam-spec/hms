@@ -1,0 +1,167 @@
+{# Shared left sidebar. Modes: closed (default) | expanded #}
+{% set path = request.path if request else '/' %}
+{% set remote = remote_mode|default(false) %}
+{% set user_label = shell_user|default(none) or (boot.username if boot is defined and boot.username else none) %}
+{% set perms = shell_permissions|default([], true) %}
+{% set super = shell_unrestricted|default(false) %}
+{# If permissions failed to load, still show core Monitor links so the menu isn't empty. #}
+{% set can_cameras = super or ('cameras.view' in perms) or (not perms) %}
+{% set can_live = super or ('cameras.live' in perms) or (not perms) %}
+{% set can_devices = super or ('devices.manage' in perms) %}
+{% set can_health = super or ('health.view' in perms) %}
+{% set can_warnings = super or ('warnings.view' in perms) %}
+{% set can_dashboard = super or ('dashboard.view' in perms) or (not perms) %}
+<link rel="stylesheet" href="{{ url_for('static', filename='shell.css') }}?v=10" />
+<button type="button" class="app-nav-toggle" id="appNavToggle" aria-label="Toggle menu" title="Toggle sidebar">☰</button>
+<button type="button" class="app-nav-backdrop" id="appNavBackdrop" aria-label="Close menu" hidden></button>
+<aside class="app-nav" id="appNav" aria-label="Main navigation">
+  <div class="app-nav-brand">
+    <div class="app-nav-mark" aria-hidden="true">CM</div>
+    <div class="app-nav-brand-text">
+      <strong>Camera Monitor</strong>
+      <span>{% if remote %}Remote dashboard{% else %}On-site console{% endif %}</span>
+    </div>
+  </div>
+  <nav class="app-nav-links">
+    <div class="app-nav-section">Monitor</div>
+    {% if can_cameras or remote %}
+    <a href="/camera-status" class="{{ 'active' if path.startswith('/camera-status') else '' }}" title="Camera Status">
+      <span class="ico" aria-hidden="true">▣</span><span class="lbl">Camera Status</span>
+    </a>
+    {% endif %}
+    {% if not remote %}
+    {% if can_live %}
+    <a href="/live" class="{{ 'active' if path.startswith('/live') else '' }}" title="Live Wall">
+      <span class="ico" aria-hidden="true">▶</span><span class="lbl">Live Wall</span>
+    </a>
+    {% endif %}
+    {% if can_cameras %}
+    <a href="/cameras" class="{{ 'active' if path.startswith('/cameras') else '' }}" title="Inventory">
+      <span class="ico" aria-hidden="true">☰</span><span class="lbl">Inventory</span>
+    </a>
+    {% endif %}
+    {% if can_dashboard %}
+    <a href="/" class="{{ 'active' if path == '/' else '' }}" title="Ping Dashboard">
+      <span class="ico" aria-hidden="true">◎</span><span class="lbl">Ping Dashboard</span>
+    </a>
+    {% endif %}
+
+    {% if can_devices or can_health or can_warnings %}
+    <div class="app-nav-section">Devices</div>
+    {% endif %}
+    {% if can_devices %}
+    <a href="/devices" class="{{ 'active' if path == '/devices' or (path.startswith('/devices/') and '/history' not in path and '/edit' not in path and path != '/devices/new') else '' }}" title="Device Master">
+      <span class="ico" aria-hidden="true">▦</span><span class="lbl">Device Master</span>
+    </a>
+    <a href="/devices/new" class="{{ 'active' if path == '/devices/new' else '' }}" title="Add Device">
+      <span class="ico" aria-hidden="true">＋</span><span class="lbl">Add Device</span>
+    </a>
+    {% endif %}
+    {% if can_health %}
+    <a href="/health-checks" class="{{ 'active' if path.startswith('/health-checks') else '' }}" title="Health Checks">
+      <span class="ico" aria-hidden="true">⏱</span><span class="lbl">Health Checks</span>
+    </a>
+    {% endif %}
+    {% if can_warnings %}
+    <a href="/warnings" class="{{ 'active' if path.startswith('/warnings') else '' }}" title="Warnings">
+      <span class="ico" aria-hidden="true">!</span><span class="lbl">Warnings</span>
+    </a>
+    {% endif %}
+    {% endif %}
+
+    {% if shell_can_admin|default(false) and not remote %}
+    <div class="app-nav-section">Administration</div>
+    <a href="/admin" class="{{ 'active' if path.startswith('/admin') else '' }}" title="Users and access">
+      <span class="ico" aria-hidden="true">☺</span><span class="lbl">Users &amp; Access</span>
+    </a>
+    {% endif %}
+
+    {% if '/history' in path %}
+    <div class="app-nav-section">Current</div>
+    <a href="{{ path }}" class="active" title="Camera History">
+      <span class="ico" aria-hidden="true">◔</span><span class="lbl">Camera History</span>
+    </a>
+    {% endif %}
+
+    {% if not (can_cameras or remote or can_live or can_dashboard or can_devices or can_health or can_warnings or shell_can_admin|default(false)) %}
+    <div class="app-nav-empty">No pages available for this account. Ask an admin to grant module permissions.</div>
+    {% endif %}
+  </nav>
+  <div class="app-nav-foot">
+    {% if user_label %}
+    <div class="app-nav-user">Signed in as <strong>{{ user_label }}</strong>{% if shell_role|default(none) %}<div>{{ shell_role }}</div>{% endif %}</div>
+    {% endif %}
+    <button type="button" class="theme-toggle theme-toggle--nav" id="themeToggle" title="Toggle theme">☀</button>
+    <a class="app-sign-out" href="/logout" title="Sign out of Camera Monitor">
+      <span class="ico" aria-hidden="true">⎋</span><span class="lbl">Sign out</span>
+    </a>
+  </div>
+</aside>
+<script>
+(function () {
+  const KEY = "camNavMode";
+  const toggle = document.getElementById("appNavToggle");
+  const backdrop = document.getElementById("appNavBackdrop");
+  const isMobile = () => window.matchMedia("(max-width: 900px)").matches;
+
+  function normalize(mode) {
+    if (mode === "expanded") return "expanded";
+    return "closed";
+  }
+
+  function setMobileOpen(open) {
+    document.body.classList.toggle("nav-open", !!open);
+    if (backdrop) {
+      backdrop.hidden = !open;
+    }
+    if (toggle) {
+      toggle.setAttribute("aria-label", open ? "Close sidebar" : "Open sidebar");
+      toggle.title = open ? "Close sidebar" : "Open sidebar";
+    }
+  }
+
+  function applyMode(mode, { persist } = { persist: true }) {
+    mode = normalize(mode);
+    document.body.classList.remove("nav-mode-closed", "nav-mode-icons", "nav-mode-expanded");
+    document.body.classList.add("nav-mode-" + mode);
+    if (isMobile()) {
+      // Mobile uses the drawer class only; never leave expanded width reserved.
+      setMobileOpen(false);
+    } else {
+      document.body.classList.remove("nav-open");
+      if (backdrop) backdrop.hidden = true;
+      if (toggle) {
+        toggle.setAttribute("aria-label", mode === "closed" ? "Open sidebar" : "Close sidebar");
+        toggle.title = mode === "closed" ? "Open sidebar" : "Close sidebar";
+      }
+    }
+    if (persist) localStorage.setItem(KEY, mode);
+  }
+
+  function toggleMode() {
+    if (isMobile()) {
+      setMobileOpen(!document.body.classList.contains("nav-open"));
+      return;
+    }
+    const open = document.body.classList.contains("nav-mode-expanded");
+    applyMode(open ? "closed" : "expanded");
+  }
+
+  applyMode(localStorage.getItem(KEY) || "closed", { persist: false });
+
+  toggle && toggle.addEventListener("click", toggleMode);
+  backdrop && backdrop.addEventListener("click", () => setMobileOpen(false));
+  document.querySelectorAll(".app-nav-links a").forEach((a) => {
+    a.addEventListener("click", () => {
+      if (isMobile()) setMobileOpen(false);
+    });
+  });
+  window.addEventListener("resize", () => {
+    if (isMobile()) {
+      document.body.classList.remove("nav-mode-expanded");
+      document.body.classList.add("nav-mode-closed");
+      if (!document.body.classList.contains("nav-open")) setMobileOpen(false);
+    }
+  });
+})();
+</script>

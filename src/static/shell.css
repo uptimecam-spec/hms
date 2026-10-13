@@ -1,0 +1,354 @@
+/* App shell — left sidebar + main content
+   Desktop: closed (hamburger) | expanded (full sidebar)
+   Mobile: drawer via .nav-open only; never reserves left width
+*/
+:root {
+  --nav-w-expanded: 220px;
+  --nav-w: 0px;
+}
+
+body.has-app-nav {
+  margin: 0;
+  min-height: 100vh;
+}
+
+body.nav-mode-expanded { --nav-w: var(--nav-w-expanded); }
+body.nav-mode-closed { --nav-w: 0px; }
+
+.app-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--nav-w-expanded);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background:
+    linear-gradient(180deg, rgba(122,167,255,.06), transparent 28%),
+    var(--nav-bg, #0b1016);
+  border-right: 1px solid var(--nav-line, rgba(255,255,255,.08));
+  color: var(--nav-text, #eef3f8);
+  font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  transition: transform .18s ease, opacity .15s ease;
+  overflow: hidden;
+}
+
+body.nav-mode-closed .app-nav {
+  transform: translateX(-105%);
+  pointer-events: none;
+  opacity: 0;
+}
+
+body.nav-mode-expanded .app-nav {
+  transform: translateX(0);
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.app-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid var(--nav-line);
+  min-height: 56px;
+}
+
+.app-nav-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 750;
+  color: var(--nav-online);
+  background: linear-gradient(145deg, rgba(62,224,160,.28), rgba(122,167,255,.28));
+  border: 1px solid var(--nav-line);
+}
+
+.app-nav-brand-text {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.app-nav-brand strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .01em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.app-nav-brand span {
+  display: block;
+  font-size: 10px;
+  color: var(--nav-muted);
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+.app-nav-links {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app-nav-section {
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--nav-muted);
+  padding: 10px 10px 4px;
+  white-space: nowrap;
+}
+
+.app-nav-links a {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--nav-link);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  min-height: 36px;
+}
+
+.app-nav-links a:hover {
+  background: var(--nav-hover);
+  color: var(--nav-text);
+  text-decoration: none;
+}
+
+.app-nav-links a.active {
+  background: var(--nav-active);
+  border-color: rgba(122,167,255,.28);
+  color: var(--nav-text);
+}
+
+.app-nav-links a .ico {
+  width: 18px;
+  text-align: center;
+  font-size: 13px;
+  opacity: .9;
+  flex: 0 0 auto;
+}
+
+.app-nav-links a .lbl {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-nav-empty {
+  margin: 8px 10px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px dashed var(--nav-line);
+  color: var(--nav-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.app-nav-foot {
+  padding: 10px 10px 12px;
+  border-top: 1px solid var(--nav-line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.app-nav-user {
+  font-size: 11px;
+  color: var(--nav-muted);
+  padding: 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-nav-user strong {
+  color: var(--nav-text);
+  font-weight: 650;
+}
+
+.theme-toggle--nav {
+  appearance: none;
+  width: 100%;
+  min-height: 36px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--nav-line, rgba(255,255,255,.12));
+  background: var(--toggle-bg, #121820);
+  color: var(--nav-text, #eef3f8);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.app-sign-out {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--signout-line);
+  background: var(--signout-bg);
+  color: var(--signout-fg);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.app-sign-out:hover {
+  background: rgba(255,93,115,.2);
+  border-color: rgba(255,93,115,.55);
+  color: #fff;
+  text-decoration: none;
+}
+
+.app-sign-out .ico {
+  flex: 0 0 auto;
+}
+
+.app-nav-toggle {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 60;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  border: 1px solid var(--nav-line, rgba(255,255,255,.12));
+  background: var(--toggle-bg, #121820);
+  color: var(--nav-text, #eef3f8);
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,.28);
+  transition: left .18s ease, background .15s ease, color .15s ease, border-color .15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body.nav-mode-expanded .app-nav-toggle {
+  left: calc(var(--nav-w-expanded) + 8px);
+}
+
+.app-nav-toggle:hover,
+.app-nav-toggle:focus,
+.app-nav-toggle:focus-visible,
+.app-nav-toggle:active {
+  border-color: var(--nav-accent, #7aa7ff);
+  background: var(--toggle-bg, #1a222c);
+  color: var(--nav-text, #eef3f8);
+  outline: none;
+}
+
+.app-main {
+  margin-left: var(--nav-w);
+  min-width: 0;
+  min-height: 100vh;
+  transition: margin-left .18s ease;
+}
+
+/* Room for hamburger on sticky headers when sidebar is closed */
+body.has-app-nav.nav-mode-closed .top-bar,
+body.has-app-nav.nav-mode-closed header > .top-bar,
+body.has-app-nav.nav-mode-closed header:not(.nvr-head):not(:has(.top-bar)) {
+  padding-left: 52px !important;
+}
+
+body.has-app-nav.nav-mode-expanded .top-bar,
+body.has-app-nav.nav-mode-expanded header > .top-bar,
+body.has-app-nav.nav-mode-expanded header:not(.nvr-head):not(:has(.top-bar)) {
+  padding-left: 12px !important;
+}
+
+.app-nav-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  background: rgba(0,0,0,.45);
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+body.nav-open .app-nav-backdrop {
+  display: block;
+}
+
+@media (max-width: 900px) {
+  /* Never reserve sidebar width on phones */
+  body.has-app-nav,
+  body.nav-mode-expanded,
+  body.nav-mode-closed {
+    --nav-w: 0px !important;
+  }
+
+  .app-main {
+    margin-left: 0 !important;
+  }
+
+  .app-nav-toggle {
+    left: 14px !important;
+  }
+
+  /* Drawer: hidden unless .nav-open — beat desktop expanded rules */
+  body.has-app-nav .app-nav,
+  body.nav-mode-closed .app-nav,
+  body.nav-mode-expanded .app-nav {
+    left: 0 !important;
+    transform: translateX(-105%) !important;
+    opacity: 1 !important;
+    pointer-events: none !important;
+    box-shadow: 8px 0 28px rgba(0,0,0,.35);
+  }
+
+  body.nav-open .app-nav {
+    transform: translateX(0) !important;
+    pointer-events: auto !important;
+  }
+
+  body.has-app-nav.nav-mode-closed header.top:not(.nvr-head),
+  body.has-app-nav.nav-mode-expanded header.top:not(.nvr-head),
+  body.has-app-nav header.top {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+
+  body.has-app-nav .top-bar,
+  body.has-app-nav header.top > .top-bar,
+  body.has-app-nav.nav-mode-closed .top-bar,
+  body.has-app-nav.nav-mode-expanded .top-bar {
+    /* room for fixed hamburger (8px + 36px) inside the padded header */
+    padding-left: 44px !important;
+  }
+
+  body.has-app-nav header:not(.top):not(.nvr-head):not(:has(.top-bar)) {
+    padding-left: 52px !important;
+    padding-right: 14px !important;
+  }
+}

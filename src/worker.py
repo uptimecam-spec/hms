@@ -28,22 +28,33 @@ from src.db import (
     list_devices,
     open_incident,
     seed_from_cameras_yaml,
+    set_frame_frozen,
 )
 from src.health_store import (
+    FROZEN_FRAME_PREFIX,
     ensure_phase3_schema,
     has_check_in_window,
+    has_open_frozen_warning,
     insert_health_check,
     list_monitoring_warnings,
     local_hour_window,
     new_health_check_id,
+    open_frozen_warning,
     purge_expired_check_images,
+    resolve_frozen_warnings,
     resolve_missed_check_warnings,
     scan_missed_mandatory_checks,
 )
 from src.icmp import icmp_ping
 from src.nvr_catalog import ensure_nvr_sync
 from src.nvr_streams import ensure_stream_discovery
-from src.streaming import capture_preview_for_check, save_check_image
+from src.streaming import (
+    capture_preview_for_check,
+    check_rtsp_stream,
+    clearer_jpeg,
+    read_stored_snapshot,
+    save_check_image,
+)
 
 log = logging.getLogger("camera-uptime.worker")
 
@@ -134,6 +145,7 @@ def process_device(
     status = "ONLINE" if final.success else "OFFLINE"
     preview_status = "SKIPPED"
     preview_error = None
+    frozen = False
     image_path = None
     check_id = new_health_check_id()
 
@@ -141,15 +153,40 @@ def process_device(
         jpeg, preview_error = capture_preview_for_check(device)
         if jpeg:
             try:
-                image_path = save_check_image(device_id, check_id, jpeg)
+                # Frozen-feed detection: a live camera's OSD clock ticks every
+                # second, so two genuinely fresh frames are never byte-identical.
+                # If the new capture matches the stored snapshot exactly, the
+                # camera/NVR encoder is replaying a stuck frame (ping + HTTP
+                # still answer, so plain ONLINE/AVAILABLE would hide it).
+                previous = read_stored_snapshot(device_id)
                 preview_status = "AVAILABLE"
-                preview_error = None
+                if previous is not None and previous == jpeg:
+                    rtsp, rtsp_jpeg = check_rtsp_stream(device_id)
+                    if rtsp.get("working") and rtsp.get("frameChanged"):
+                        # HTTP snapshot can be cached while RTSP video is healthy.
+                        # Prove motion with RTSP, but keep the higher-resolution
+                        # still so a substream frame cannot soften the preview.
+                        jpeg = clearer_jpeg(jpeg, rtsp_jpeg) or jpeg
+                        frozen = False
+                        preview_error = None
+                    else:
+                        frozen = True
+                        preview_error = (
+                            f"{FROZEN_FRAME_PREFIX} — HTTP and RTSP checks did "
+                            "not prove moving video; please restart camera"
+                        )
+                else:
+                    frozen = False
+                    preview_error = None
+                image_path = save_check_image(device_id, check_id, jpeg)
             except Exception as exc:
                 preview_status = "UNAVAILABLE"
                 preview_error = f"image store failed: {exc}"
+                frozen = False
         else:
             preview_status = "UNAVAILABLE"
             preview_error = preview_error or "preview unavailable"
+            frozen = False
 
     hc = insert_health_check(
         device_id=device_id,
@@ -202,6 +239,41 @@ def process_device(
                 f"IP: {device.get('ipAddress')}\nRTT: {final.response_time_ms} ms\n"
                 f"Time: {final.checked_at}",
             )
+        # The device-column flag is owned only by new-code checks: a fresh
+        # frame clears it, so a rebooted camera drops out of FROZEN by itself.
+        if not frozen and preview_status == "AVAILABLE":
+            set_frame_frozen(device_id, None)
+
+    if status == "ONLINE" and frozen:
+        set_frame_frozen(device_id, final.checked_at)
+        already = has_open_frozen_warning(device_id)
+        open_frozen_warning(
+            device_id,
+            f"FROZEN FEED: {device.get('deviceName')} ({device_id}) frame identical to "
+            f"previous capture at {final.checked_at}. Camera encoder may be stuck — "
+            "please restart the camera.",
+        )
+        if not already:
+            send_telegram(
+                settings,
+                f"CAMERA FEED FROZEN\n{device.get('deviceName')} ({device.get('deviceType')})\n"
+                f"IP: {device.get('ipAddress')}\n"
+                f"NVR: {device.get('nvrId') or device.get('nvrHost') or '—'}\n"
+                "The image has not changed between checks — encoder may be stuck.\n"
+                f"Please restart the camera.\nTime: {final.checked_at}",
+            )
+    elif status == "ONLINE":
+        if resolve_frozen_warnings(device_id) and settings.recovery_notify:
+            send_telegram(
+                settings,
+                f"CAMERA FEED RECOVERED\n{device.get('deviceName')} ({device.get('deviceType')})\n"
+                f"IP: {device.get('ipAddress')}\nFrames are changing again.\n"
+                f"Time: {final.checked_at}",
+            )
+    else:
+        # An offline camera supersedes any frozen-feed warning.
+        set_frame_frozen(device_id, None)
+        resolve_frozen_warnings(device_id)
 
     log.info(
         "%s %s %s -> %s preview=%s image=%s rtt=%s",
@@ -217,6 +289,7 @@ def process_device(
         "deviceId": device_id,
         "status": status,
         "previewStatus": preview_status,
+        "frameFrozen": frozen,
         "checkKind": kind,
         "healthCheck": hc,
         "incident": incident,

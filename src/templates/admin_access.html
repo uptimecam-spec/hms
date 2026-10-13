@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  {% include "_theme.html" %}
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Users &amp; access · Camera Monitor</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}" />
+</head>
+<body class="has-app-nav">
+  {% include "_nav.html" %}
+  <div class="app-main">
+    <header class="admin-top">
+      <div>
+        <h1>Users &amp; access</h1>
+        <p>User → role → locations → NVRs → cameras → permissions. Super Admin is unrestricted. Every other account only receives the cameras you assign.</p>
+      </div>
+      <div class="admin-tabs" role="tablist">
+        {% if can_users %}
+        <button type="button" class="tab active" data-tab="users">Users</button>
+        {% endif %}
+        {% if can_roles %}
+        <button type="button" class="tab {{ '' if can_users else 'active' }}" data-tab="roles">Roles</button>
+        {% endif %}
+      </div>
+    </header>
+    <div id="adminAlert" class="admin-alert" hidden></div>
+    <section id="usersPane" class="admin-pane" {% if not can_users %}hidden{% endif %}></section>
+    <section id="rolesPane" class="admin-pane" {% if can_users %}hidden{% endif %}></section>
+  </div>
+  <script>
+    window.ADMIN_BOOT = {
+      canUsers: {{ "true" if can_users else "false" }},
+      canRoles: {{ "true" if can_roles else "false" }}
+    };
+  </script>
+  <script src="{{ url_for('static', filename='admin.js') }}"></script>
+</body>
+</html>

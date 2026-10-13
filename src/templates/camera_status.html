@@ -16,6 +16,7 @@
       --offline: #ff5d73;
       --pending: #f0c14b;
       --preview: #e8c547;
+      --frozen: #5ec8f8;
       --accent: #7aa7ff;
       --fav: #f5c542;
       --card-w: 112px;
@@ -61,11 +62,36 @@
     .chip b { font-variant-numeric: tabular-nums; }
     .chip.active { border-color: transparent; color: #061018; }
     .chip.all.active { background: var(--text); }
-    .chip.online.active { background: var(--online); }
+    .chip.online.active { background: var(--online); color: #073222; }
     .chip.offline.active { background: var(--offline); color: #2a0b10; }
-    .chip.pending.active { background: var(--pending); color: #2a2208; }
     .chip.preview.active { background: var(--preview); color: #2a2208; }
-    .chip.fav.active { background: var(--fav); color: #2a2208; }
+    .chip.fav.active { background: #7aa7ff; color: #061018; }
+    .chip.online {
+      color: #b6f5d8;
+      background: rgba(62, 224, 160, .16);
+      border-color: rgba(62, 224, 160, .55);
+    }
+    .chip.offline {
+      color: #ffc2cc;
+      background: rgba(255, 93, 115, .16);
+      border-color: rgba(255, 93, 115, .55);
+    }
+    .chip.preview {
+      color: #ffe7a8;
+      background: rgba(232, 197, 71, .16);
+      border-color: rgba(232, 197, 71, .55);
+    }
+    .chip.frozen {
+      color: #c9ecff;
+      background: rgba(94, 200, 248, .16);
+      border-color: rgba(94, 200, 248, .55);
+    }
+    .chip.frozen.active { background: var(--frozen); color: #06222f; }
+    .chip.fav {
+      color: #d7e4ff;
+      background: rgba(122, 167, 255, .16);
+      border-color: rgba(122, 167, 255, .55);
+    }
     .chip-sep {
       width: 1px; height: 14px; background: var(--line); margin: 0 2px; flex: 0 0 auto;
     }
@@ -122,9 +148,11 @@
     .stat.online { color: var(--online); }
     .stat.offline { color: var(--offline); }
     .stat.preview { color: var(--preview); }
+    .stat.frozen { color: var(--frozen); }
     .stat.online i { background: var(--online); }
     .stat.offline i { background: var(--offline); }
     .stat.preview i { background: var(--preview); }
+    .stat.frozen i { background: var(--frozen); }
 
     .grid {
       display: grid;
@@ -141,6 +169,7 @@
     .cam.online { border-color: rgba(62,224,160,.28); }
     .cam.offline { border-color: rgba(255,93,115,.45); background: #181015; }
     .cam.preview-miss { border-color: rgba(232,197,71,.5); background: #17140c; }
+    .cam.frozen { border-color: rgba(94,200,248,.55); background: #0c1620; }
     .cam.changed { animation: flash .55s ease; }
     @keyframes flash {
       0% { box-shadow: 0 0 0 2px rgba(122,167,255,.65); }
@@ -177,6 +206,7 @@
     .online .dot { background: var(--online); box-shadow: 0 0 0 0 rgba(62,224,160,.5); animation: pulse 2.4s infinite; }
     .offline .dot { background: var(--offline); }
     .preview-miss .dot { background: var(--preview); box-shadow: 0 0 0 0 rgba(232,197,71,.45); animation: pulse 2.4s infinite; }
+    .frozen .dot { background: var(--frozen); box-shadow: 0 0 0 0 rgba(94,200,248,.45); animation: pulse 2.4s infinite; }
     .fav-btn {
       position: absolute; top: 3px; left: 3px; z-index: 3;
       width: 20px; height: 20px; border-radius: 6px;
@@ -254,6 +284,7 @@
     .online .badge { color: #073222; background: var(--online); }
     .offline .badge { color: #3a0d14; background: var(--offline); }
     .preview-miss .badge { color: #2c2308; background: var(--preview); }
+    .frozen .badge { color: #06222f; background: var(--frozen); }
     .pending .badge { color: #2c2308; background: var(--pending); }
 
     .empty {
@@ -378,6 +409,7 @@
     }
     .hist-badge.online { background: var(--online); color: #073222; }
     .hist-badge.offline { background: var(--offline); color: #3a0d14; }
+    .hist-badge.frozen { background: var(--frozen); color: #06222f; }
     .hist-badge.preview { background: var(--preview); color: #2c2308; }
     .hist-thumb {
       width: 64px; height: 40px; border-radius: 6px; overflow: hidden; background: #07090d;
@@ -398,10 +430,93 @@
     body.density-m { --card-w: 124px; --gap: 6px; }
     body.density-l { --card-w: 148px; --gap: 8px; }
 
-    @media (max-width: 720px) {
-      .tools { margin-left: 0; width: 100%; justify-content: space-between; }
-      .nvr-stats { margin-left: 0; width: 100%; }
-      body.density-s { --card-w: 96px; }
+    @media (max-width: 900px) {
+      .top {
+        gap: 6px;
+        padding-top: 8px !important;
+        padding-bottom: 8px !important;
+        align-items: stretch;
+      }
+      .brand { display: none; }
+      .search {
+        flex: 1 1 auto;
+        width: calc(100% - 48px);
+        margin-left: 48px;
+        max-width: none;
+        min-width: 0;
+        min-height: 36px;
+        font-size: 13px;
+        padding: 8px 12px;
+        box-sizing: border-box;
+      }
+      .chips {
+        flex: 1 1 100%;
+        flex-wrap: wrap;
+        overflow: visible;
+        width: 100%;
+        max-width: 100%;
+        gap: 6px;
+      }
+      .chip, .chip.nvr {
+        flex: 0 1 auto;
+        font-size: 11px;
+        padding: 5px 8px;
+        white-space: nowrap;
+      }
+      .chip-sep { display: none; }
+      .tools {
+        margin-left: 0;
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+      }
+      .tools .live,
+      .user-label { display: none; }
+      .tools .user-input,
+      .tools select {
+        width: 100%;
+        min-width: 0;
+        font-size: 12px;
+        padding: 6px 8px;
+        box-sizing: border-box;
+      }
+      .tools .user-input { grid-column: 1 / -1; }
+
+      .board { padding: 8px 8px 20px; gap: 8px; }
+      .nvr-section { padding: 6px; border-radius: 10px; }
+      .nvr-head {
+        gap: 4px 8px;
+        padding: 0 0 6px;
+        margin-bottom: 6px;
+      }
+      .nvr-title h2 { font-size: 13px; }
+      .nvr-title span { font-size: 10px; }
+      .nvr-stats {
+        margin-left: 0;
+        width: 100%;
+        flex-wrap: wrap;
+        overflow: visible;
+      }
+      .stat { flex: 0 0 auto; font-size: 10px; }
+
+      .grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 5px !important;
+      }
+      body.density-s,
+      body.density-m,
+      body.density-l {
+        --gap: 5px;
+      }
+      .cam { border-radius: 8px; }
+      .fav-btn { width: 16px; height: 16px; font-size: 10px; }
+      .dot { width: 7px; height: 7px; }
+      .meta { padding: 3px 3px 4px; }
+      .name { font-size: 9px; }
+      .sub { font-size: 8px; }
+      .badge { font-size: 7px; padding: 1px 3px; }
+      .start-btn { font-size: 7px; padding: 1px 4px; }
     }
   </style>
 </head>
@@ -411,33 +526,17 @@
   <header class="top">
     <div class="brand">
       <strong>Camera Monitor</strong>
-      <span id="subline">{% if remote_mode %}Remote view · last synced —{% else %}Hourly ICMP · syncing{% endif %}</span>
     </div>
     <input id="q" class="search" type="search" placeholder="Search name, IP, or NVR" />
     <div class="chips" id="chips">
-      <button class="chip all active" data-filter="">All <b id="nAll">0</b></button>
-      <button class="chip fav" data-filter="FAVOURITES">Favourites <b id="nFav">0</b></button>
       <button class="chip online" data-filter="ONLINE">Online <b id="nOn">0</b></button>
       <button class="chip offline" data-filter="OFFLINE">Offline <b id="nOff">0</b></button>
       <button class="chip preview" data-filter="PREVIEW_UNAVAILABLE">Preview Error <b id="nPrev">0</b></button>
-      <button class="chip pending" data-filter="PENDING">Pending <b id="nPend">0</b></button>
+      <button class="chip frozen" data-filter="FROZEN">Frozen <b id="nFro">0</b></button>
+      <button class="chip fav" data-filter="FAVOURITES">Favourites <b id="nFav">0</b></button>
+      <button class="chip all active" data-filter="">All <b id="nAll">0</b></button>
       <span class="chip-sep" aria-hidden="true"></span>
       <span id="nvrChips"></span>
-    </div>
-    <div class="tools">
-      <span class="live" title="Auto refresh"></span>
-      <span class="user-label" title="Favourites are saved per user">User</span>
-      <input id="favUser" class="user-input" type="text" maxlength="64" spellcheck="false" aria-label="Favourites user" {% if remote_mode %}readonly{% endif %} />
-      <select id="sort" aria-label="Sort">
-        <option value="channel" selected>Channel</option>
-        <option value="name">Name</option>
-        <option value="ping">Last ping</option>
-      </select>
-      <select id="density" aria-label="Density">
-        <option value="s" selected>Dense</option>
-        <option value="m">Medium</option>
-        <option value="l">Large</option>
-      </select>
     </div>
   </header>
   <main class="board" id="board">
@@ -474,6 +573,7 @@
         <div class="modal-actions">
           {% if not remote_mode %}
           <button class="ghost" id="checkLive" type="button">Start</button>
+          <button class="ghost" id="checkRtsp" type="button">Check RTSP</button>
           <button class="primary" id="pingOne" type="button">Ping now</button>
           <button class="ghost" id="retryPreview" type="button">Retry Preview</button>
           <a class="ghost" id="historyLink" href="#">Full history</a>
@@ -653,6 +753,7 @@
     }
     function cls(c) {
       const display = c.displayStatus || c.status;
+      if (display === "FROZEN" || c.frameFrozen) return "frozen";
       if (display === "ONLINE_PREVIEW_UNAVAILABLE") return "preview-miss";
       if ((c.networkStatus || c.status) === "ONLINE") return "online";
       if ((c.networkStatus || c.status) === "OFFLINE") return "offline";
@@ -660,6 +761,7 @@
     }
     function label(c) {
       const key = typeof c === "string" ? c : (c.displayStatus || c.status);
+      if (key === "FROZEN") return "FROZEN ❄ RESTART";
       if (key === "ONLINE_PREVIEW_UNAVAILABLE") return "PREVIEW ERR";
       if (key === "ONLINE") return "ONLINE";
       if (key === "OFFLINE") return "OFFLINE";
@@ -678,10 +780,12 @@
     }
     function matchesFilter(c) {
       const net = c.networkStatus || c.status;
+      const display = c.displayStatus || c.status;
       if (filter === "FAVOURITES") return isFavourite(c.deviceId);
+      if (filter === "FROZEN") return display === "FROZEN" || !!c.frameFrozen;
       if (filter === "PENDING") return net !== "ONLINE" && net !== "OFFLINE";
-      if (filter === "PREVIEW_UNAVAILABLE") return net === "ONLINE" && c.previewStatus === "UNAVAILABLE";
-      if (filter === "ONLINE") return net === "ONLINE";
+      if (filter === "PREVIEW_UNAVAILABLE") return display === "ONLINE_PREVIEW_UNAVAILABLE";
+      if (filter === "ONLINE") return net === "ONLINE" && display !== "FROZEN" && !c.frameFrozen;
       if (filter === "OFFLINE") return net === "OFFLINE";
       if (filter) return net === filter;
       return true;
@@ -695,6 +799,7 @@
     }
     function statusRank(c) {
       const display = c.displayStatus || c.status;
+      if (display === "FROZEN" || !!c.frameFrozen) return 0.5;
       if (display === "OFFLINE" || (c.networkStatus || c.status) === "OFFLINE") return 0;
       if (display === "ONLINE_PREVIEW_UNAVAILABLE" || ((c.networkStatus || c.status) === "ONLINE" && c.previewStatus === "UNAVAILABLE")) return 1;
       if (display === "WARNING") return 2;
@@ -703,7 +808,8 @@
       return 5;
     }
     function sortCams(list) {
-      const sort = document.getElementById("sort").value;
+      const sortEl = document.getElementById("sort");
+      const sort = sortEl ? sortEl.value : "channel";
       list.sort((a, b) => {
         // Always: Offline → Preview Error → Online (then other)
         const byStatus = statusRank(a) - statusRank(b);
@@ -804,7 +910,9 @@
         if (std < 12) {
           return { ok: false, blank: false, poor: true, reason: "Very low contrast", label: "Poor quality" };
         }
-        if (edgeScore < 4.5 && std < 28) {
+        // Sharpness is measured on a tiny sample. A full main-stream frame
+        // (720p or larger) is not soft just because that sample lost its edges.
+        if (edgeScore < 4.5 && std < 28 && Math.max(nw, nh) < 960) {
           return { ok: false, blank: false, poor: true, reason: "Soft / blurry looking frame", label: "Poor quality" };
         }
         return result;
@@ -934,17 +1042,16 @@
 
     function bindThumb(img, deviceId, networkOnline) {
       img.onload = () => {
-        const q = assessImageQuality(img);
-        if (q.blank) {
-          if (networkOnline) markPreviewError(deviceId);
+        const wide = img.naturalWidth || 0;
+        const high = img.naturalHeight || 0;
+        if (wide < 8 || high < 8) {
           img.hidden = true;
           img.classList.remove("show");
-          markImageQuality(deviceId, q);
+          if (networkOnline) markPreviewError(deviceId);
           return;
         }
         img.hidden = false;
         img.classList.add("show");
-        // Only tag poor quality when user opens/clicks; grid thumbs stay silent unless already tagged.
       };
       img.onerror = () => {
         img.hidden = true;
@@ -1001,6 +1108,7 @@
           <div class="nvr-stats">
             <span class="stat online"><i></i>${group.online ?? 0} Online</span>
             <span class="stat offline"><i></i>${group.offline ?? 0} Offline</span>
+            <span class="stat frozen"><i></i>${group.frozen ?? 0} Frozen</span>
             <span class="stat preview"><i></i>${group.previewUnavailable ?? 0} Preview Error</span>
           </div>
         </header>
@@ -1009,28 +1117,28 @@
     }
 
     function paint(changedIds) {
-      const counts = { ALL: cameras.length, ONLINE: 0, OFFLINE: 0, PREVIEW_UNAVAILABLE: 0, UNKNOWN: 0 };
+      const counts = { ALL: cameras.length, ONLINE: 0, OFFLINE: 0, FROZEN: 0, PREVIEW_UNAVAILABLE: 0, UNKNOWN: 0 };
       for (const c of cameras) {
         const net = c.networkStatus || c.status;
-        if (net === "ONLINE") {
+        const display = c.displayStatus || c.status;
+        if (display === "FROZEN" || c.frameFrozen) {
+          counts.FROZEN++;
+        } else if (net === "ONLINE") {
           counts.ONLINE++;
-          if (c.previewStatus === "UNAVAILABLE") counts.PREVIEW_UNAVAILABLE++;
+          if (display === "ONLINE_PREVIEW_UNAVAILABLE") counts.PREVIEW_UNAVAILABLE++;
         } else if (net === "OFFLINE") counts.OFFLINE++;
         else counts.UNKNOWN++;
       }
       document.getElementById("nAll").textContent = counts.ALL;
       document.getElementById("nOn").textContent = counts.ONLINE;
       document.getElementById("nOff").textContent = counts.OFFLINE;
+      document.getElementById("nFro").textContent = counts.FROZEN;
       document.getElementById("nPrev").textContent = counts.PREVIEW_UNAVAILABLE;
-      document.getElementById("nPend").textContent = counts.UNKNOWN;
+      const nPend = document.getElementById("nPend");
+      if (nPend) nPend.textContent = counts.UNKNOWN;
       updateFavCount();
       if (remoteMode) {
         syncRemoteSubline();
-      } else {
-        const cycle = boot.worker && boot.worker.lastCycle ? fmtRel(boot.worker.lastCycle) : "—";
-        const worker = boot.worker && boot.worker.running ? "worker live" : "worker stopped";
-        document.getElementById("subline").textContent =
-          `${nvrFilter ? ("NVR " + nvrFilter + " · ") : ((nvrs || []).length + " NVRs · ")}${counts.OFFLINE} offline · ${counts.ONLINE} online · ${counts.PREVIEW_UNAVAILABLE} preview err · ${worker} · ${cycle}`;
       }
 
       syncNvrControls();
@@ -1048,8 +1156,9 @@
         const cam = cameras.find(c => c.deviceId === id);
         const netOnline = cam ? (cam.networkStatus || cam.status) === "ONLINE" : true;
         bindThumb(img, id, netOnline);
-        if (img.complete && img.naturalWidth) {
-          img.onload();
+        if (img.complete) {
+          if (img.naturalWidth) img.onload();
+          else img.onerror();
         }
       });
 
@@ -1072,7 +1181,9 @@
       document.getElementById("modalIp").textContent = c.ipAddress;
       const rtt = c.lastResponseTimeMs == null ? "—" : `${Math.round(c.lastResponseTimeMs * 10) / 10} ms`;
       const loss = c.lastPacketLossPct == null ? "—" : `${c.lastPacketLossPct}%`;
-      const previewLabel = c.previewStatus === "AVAILABLE" ? "Available" : "Error / unavailable";
+      const previewLabel = (c.displayStatus === "FROZEN" || c.frameFrozen)
+        ? "Frozen ❄ — please restart camera"
+        : (c.previewStatus === "AVAILABLE" ? "Available" : "Error / unavailable");
       const qualityLabel = c.imageQuality === "POOR"
         ? ("Not good" + (c.imageQualityReason ? ` (${c.imageQualityReason})` : ""))
         : (c.imageQuality === "GOOD" ? "Good" : "Not checked yet");
@@ -1160,7 +1271,10 @@
       loadHistory(c.deviceId);
     }
 
-    function histBadge(overall) {
+    function histBadge(item) {
+      const overall = typeof item === "string" ? item : item.overallStatus;
+      const err = typeof item === "string" ? "" : (item.previewError || "");
+      if (err.indexOf("frame identical") === 0) return '<span class="hist-badge frozen">Frozen ❄ Restart</span>';
       if (overall === "ONLINE") return '<span class="hist-badge online">Online</span>';
       if (overall === "OFFLINE") return '<span class="hist-badge offline">Offline</span>';
       return '<span class="hist-badge preview">Preview Error</span>';
@@ -1200,11 +1314,12 @@
               <div class="hist-kind">${escapeHtml(kind)}</div>
             </div>
             <div>
-              ${histBadge(item.overallStatus)}
+              ${histBadge(item)}
               <div class="hist-facts">
                 Ping: ${item.pingSuccess ? "Successful" : "Failed"}
                 ${item.responseTimeMs != null ? " · " + Math.round(item.responseTimeMs * 10) / 10 + " ms" : ""}<br/>
                 Preview: ${escapeHtml(item.previewStatus || "—")}
+                ${item.previewError ? `<br/><span style="color:#ffb37a">Note: ${escapeHtml(item.previewError)}</span>` : ""}
               </div>
             </div>
             <div class="hist-thumb">${thumb}</div>
@@ -1212,6 +1327,10 @@
         }
         box.className = "";
         box.innerHTML = html;
+        const latest = items[0];
+        if (latest && latest.previewError && !liveActive && selectedId === deviceId) {
+          setPreviewStatus("warn", "<strong>Camera feed issue</strong> — " + escapeHtml(latest.previewError));
+        }
         box.querySelectorAll("[data-hist-img]").forEach(thumb => {
           thumb.addEventListener("click", (e) => {
             e.stopPropagation();
@@ -1292,44 +1411,62 @@
       liveTimer = setTimeout(() => pullLiveFrame(deviceId, token), 1200);
     }
 
-    function pullLiveFrame(deviceId, token) {
+    async function pullLiveFrame(deviceId, token) {
       if (!liveActive || token !== liveToken || selectedId !== deviceId || liveInFlight) {
-        scheduleLiveFrame(deviceId, token);
         return;
       }
       liveInFlight = true;
-      setPreviewLoading(true);
-      setPreviewStatus("loading", "Requesting next frame from camera…");
       const img = document.getElementById("modalImg");
       const fallback = document.getElementById("modalFallback");
+      const hasFrame = !!(img && !img.hidden && img.getAttribute("src"));
+      setPreviewLoading(!hasFrame);
+      setPreviewStatus("loading", hasFrame ? "Updating live frame…" : "Requesting next frame from camera…");
       const url = `/api/cameras/${encodeURIComponent(deviceId)}/live.jpg?t=${Date.now()}`;
-      const probe = new Image();
-      probe.onload = () => {
-        liveInFlight = false;
+      try {
+        const response = await fetch(url, { cache: "no-store" });
+        if (!response.ok) throw new Error(String(response.status));
+        const blob = await response.blob();
         if (!liveActive || token !== liveToken || selectedId !== deviceId) return;
+        const objectUrl = URL.createObjectURL(blob);
+        const previous = img.dataset.objectUrl || "";
         img.onload = () => {
+          if (previous) URL.revokeObjectURL(previous);
           setPreviewLoading(false);
+          img.hidden = false;
+          fallback.classList.remove("open");
           const stamp = new Date().toLocaleTimeString(undefined, {
             hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true,
           });
           setPreviewStatus("ok", `<strong>Frame updated</strong> · ${stamp}`);
         };
-        img.src = url;
-        img.hidden = false;
-        fallback.classList.remove("open");
-        scheduleLiveFrame(deviceId, token);
-      };
-      probe.onerror = () => {
-        liveInFlight = false;
-        setPreviewLoading(false);
+        img.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          setPreviewLoading(false);
+          if (!hasFrame) {
+            img.hidden = true;
+            fallback.classList.add("open");
+          }
+          setPreviewStatus("err", "Unable to show the latest frame. Retrying…");
+        };
+        img.dataset.objectUrl = objectUrl;
+        img.src = objectUrl;
+      } catch (_) {
         if (!liveActive || token !== liveToken || selectedId !== deviceId) return;
-        fallback.classList.add("open");
-        fallback.querySelector("strong").textContent = "Live frame unavailable";
-        fallback.querySelector("span").textContent = "Retrying shortly — camera may still be online";
+        setPreviewLoading(false);
+        if (!hasFrame) {
+          fallback.classList.add("open");
+          const title = fallback.querySelector("strong");
+          const detail = fallback.querySelector("span");
+          if (title) title.textContent = "Live frame unavailable";
+          if (detail) detail.textContent = "Retrying shortly — camera may still be online";
+        }
         setPreviewStatus("err", "Unable to retrieve the latest frame. Retrying…");
-        scheduleLiveFrame(deviceId, token);
-      };
-      probe.src = url;
+      } finally {
+        liveInFlight = false;
+        if (liveActive && token === liveToken && selectedId === deviceId) {
+          scheduleLiveFrame(deviceId, token);
+        }
+      }
     }
 
     function startLivePreview(deviceId) {
@@ -1377,10 +1514,17 @@
             group.cameras[j] = { ...group.cameras[j], ...row, nvrGroup: group.nvrId, nvrLabel: group.nvrLabel };
           }
         }
-        group.online = group.cameras.filter(c => (c.networkStatus || c.status) === "ONLINE").length;
+        group.online = group.cameras.filter(
+          c => (c.networkStatus || c.status) === "ONLINE"
+            && (c.displayStatus || c.status) !== "FROZEN"
+            && !c.frameFrozen
+        ).length;
         group.offline = group.cameras.filter(c => (c.networkStatus || c.status) === "OFFLINE").length;
+        group.frozen = group.cameras.filter(
+          c => (c.displayStatus || c.status) === "FROZEN" || !!c.frameFrozen
+        ).length;
         group.previewUnavailable = group.cameras.filter(
-          c => (c.networkStatus || c.status) === "ONLINE" && c.previewStatus === "UNAVAILABLE"
+          c => (c.displayStatus || c.status) === "ONLINE_PREVIEW_UNAVAILABLE"
         ).length;
       }
     }
@@ -1473,18 +1617,7 @@
       paint();
     });
     q.addEventListener("input", () => paint());
-    document.getElementById("sort").addEventListener("change", () => paint());
-    document.getElementById("density").addEventListener("change", (e) => {
-      document.body.classList.remove("density-s", "density-m", "density-l");
-      document.body.classList.add("density-" + e.target.value);
-      localStorage.setItem("camDensity", e.target.value);
-    });
-    const saved = localStorage.getItem("camDensity");
-    if (saved) {
-      document.getElementById("density").value = saved;
-      document.body.classList.remove("density-s", "density-m", "density-l");
-      document.body.classList.add("density-" + saved);
-    }
+    document.getElementById("sort")?.addEventListener("change", () => paint());
 
     // Drop stale NVR filter if that NVR no longer exists
     if (nvrFilter && !(nvrs || []).some(g => g.nvrId === nvrFilter)) {
@@ -1517,6 +1650,41 @@
       if (!selectedId) return;
       if (liveActive) stopLivePreview();
       else startLivePreview(selectedId);
+    });
+    document.getElementById("checkRtsp")?.addEventListener("click", async () => {
+      if (!selectedId) return;
+      const deviceId = selectedId;
+      const btn = document.getElementById("checkRtsp");
+      btn.disabled = true;
+      btn.textContent = "Checking RTSP…";
+      setPreviewLoading(true);
+      setPreviewStatus("loading", "Reading two frames directly from RTSP…");
+      try {
+        const res = await fetch(`/api/cameras/${encodeURIComponent(deviceId)}/rtsp/check`, {
+          method: "POST",
+        });
+        const data = await res.json();
+        if (data.camera) mergeCameraUpdate(data.camera);
+        if (data.working && data.frameChanged) {
+          const source = data.source === "nvr" ? "NVR RTSP" : "camera RTSP";
+          setPreviewStatus("ok", `<strong>RTSP video is working</strong> — moving frames from ${escapeHtml(source)} · ${data.elapsedMs || 0} ms`);
+          const img = document.getElementById("modalImg");
+          img.src = `/api/cameras/${encodeURIComponent(deviceId)}/rtsp.jpg?t=${Date.now()}`;
+          img.hidden = false;
+          document.getElementById("modalFallback").classList.remove("open");
+          paint(new Set([deviceId]));
+        } else if (data.working) {
+          setPreviewStatus("warn", "<strong>RTSP connected but frames are identical</strong> — camera may still be frozen");
+        } else {
+          setPreviewStatus("err", `<strong>RTSP unavailable</strong> — ${escapeHtml(data.error || "stream could not be opened")}`);
+        }
+      } catch (_) {
+        setPreviewStatus("err", "<strong>RTSP check failed</strong> — backend request failed");
+      } finally {
+        setPreviewLoading(false);
+        btn.disabled = false;
+        btn.textContent = "Check RTSP";
+      }
     });
     modalFavBtn?.addEventListener("click", () => {
       if (selectedId) toggleFavourite(selectedId);

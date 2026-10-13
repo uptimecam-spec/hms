@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  {% include "_theme.html" %}
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Access denied · Camera Monitor</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='shell.css') }}" />
+  <style>
+    body { margin: 0; background: #07090d; color: #eef3f8; font-family: "Segoe UI", system-ui, sans-serif; }
+    .denied { max-width: 520px; margin: 12vh auto; padding: 28px; }
+    h1 { font-size: 22px; margin: 0 0 8px; }
+    p { color: #8b97a8; line-height: 1.5; }
+    a { color: #7aa7ff; }
+  </style>
+</head>
+<body class="has-app-nav">
+  {% include "_nav.html" %}
+  <div class="app-main">
+    <div class="denied">
+      <h1>Access denied</h1>
+      <p>Your account does not include this page. Camera and NVR data is limited to the locations, NVRs, and cameras assigned to you.</p>
+      <p><a href="/camera-status">Back to camera status</a></p>
+    </div>
+  </div>
+</body>
+</html>

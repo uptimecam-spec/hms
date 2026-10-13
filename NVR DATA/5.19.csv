@@ -1,0 +1,33 @@
+IP Address/Registration ID,Port,Remote Channel,CAM NAME,Manufacturer,User Name,Password,Encryption,Link Info,Channel
+192.168.6.46,37777,1,1 Nutra Gate Main Entry -01,Private,admin,,0,1,1
+192.168.6.47,37777,1,2 Nutra main Entry Gate -02,Private,admin,,0,1,2
+192.168.6.49,25001,1,3 Nutra Main Gate Inside 01,Private,admin,,0,1,3
+192.168.6.22,37777,1,4 Nutra Main Gate Inside 02,Private,admin,,0,1,4
+192.168.6.50,25001,1,5 Nutra Right Side Towards Gate,Private,admin,,0,1,5
+192.168.6.44,37777,1,6 Nutra Bck Side Full View,Private,admin,,0,1,6
+192.168.6.43,37777,1,7 Nutra Back Side Left View,Private,admin,,0,1,7
+192.168.6.56,25001,1,8 Towards Water Tank,Private,admin,,0,1,8
+192.168.6.45,25001,1,9 Nutra Left Side Nr AHU,Private,admin,,0,1,9
+192.168.6.42,25001,1,10 Electric Panel Room,Private,admin,,0,1,10
+192.168.6.35,25001,1,11 Main Entry,Private,admin,,0,1,11
+192.168.6.29,25001,1,12 Admin Office,Private,admin,,0,1,12
+192.168.6.21,25001,1,13 Visitor Entry,Private,admin,,0,1,13
+192.168.6.26,25001,1,14  Lobby Full VIew,Private,admin,,0,1,14
+192.168.6.28,25001,1,15 Towards To Lobby Area,Private,admin,,0,1,15
+192.168.6.24,25001,1,16 Store Room Full VIew,Private,admin,,0,1,16
+192.168.6.25,25001,1,17 Store Entry Area,Private,admin,,0,1,17
+192.168.6.37,25001,1,18 Granulation Room,Private,admin,,0,1,18
+192.168.6.32,25001,1,19 Final Packing Room,Private,admin,,0,1,19
+192.168.6.39,25001,1,20 Primary Packing Room,Private,admin,,0,1,20
+192.168.6.23,25001,1,21 Pouch Packing Room,Private,admin,,0,1,21
+192.168.6.30,25001,1,22 Capsul Filling Room,Private,admin,,0,1,22
+192.168.6.33,25001,1,23 Coating Room,Private,admin,,0,1,23
+192.168.6.34,25001,1,24 Washing Area,Private,admin,,0,1,24
+192.168.6.27,25001,1,25 Male Change Room,Private,admin,,0,1,25
+192.168.6.41,25001,1,26 Female Change Room,Private,admin,,0,1,26
+192.168.6.40,25001,1,27 Warehouse Full View Right,Private,admin,,0,1,27
+192.168.6.36,25001,1,28 Warehouse Left Side Full,Private,admin,,0,1,28
+192.168.6.31,25001,1,29 Compressor Room,Private,admin,,0,1,29
+192.168.6.38,25001,1,30 Water Tower Room,Private,admin,,0,1,30
+192.168.6.48,25001,1,31 RO & DM Water System Plant,Private,admin,,0,1,31
+192.168.6.51,25001,1,32 Nutra Ceilling-01,Private,admin,,0,1,32

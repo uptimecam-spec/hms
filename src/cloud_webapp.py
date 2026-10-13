@@ -24,6 +24,15 @@ from flask import (
     url_for,
 )
 
+from src.access_control import (
+    actor_from_directory,
+    authenticate_directory,
+    camera_allowed,
+    directory_user,
+    filter_camera_status_payload,
+    has_permission,
+    permission_catalog,
+)
 from src.bunny_storage import (
     bunny_readable,
     check_image_object_key,
@@ -48,6 +57,7 @@ load_dotenv(ROOT / ".env", override=False)
 
 STATUS_KEY = "dashboard/camera-status.json"
 HISTORIES_KEY = "dashboard/histories.json"
+ACCESS_KEY = "dashboard/access-control.json"
 
 _TEMPLATES = Path(__file__).resolve().parent / "templates"
 
@@ -73,7 +83,26 @@ _configure_secret()
 
 _status_cache: dict[str, Any] = {"at": 0.0, "data": None}
 _histories_cache: dict[str, Any] = {"at": 0.0, "data": None}
+_access_cache: dict[str, Any] = {"at": 0.0, "data": None}
 _CACHE_TTL_SEC = 20.0
+
+
+@app.context_processor
+def _shell_context():
+    actor = _current_actor()
+    role = (actor or {}).get("role") or {}
+    unrestricted = bool(role.get("unrestricted"))
+    permissions = list(role.get("permissions") or [])
+    if unrestricted:
+        permissions = [item["key"] for item in permission_catalog()]
+    return {
+        "remote_mode": True,
+        "shell_user": actor.get("username") if actor else None,
+        "shell_role": role.get("name"),
+        "shell_unrestricted": unrestricted,
+        "shell_permissions": permissions,
+        "shell_can_admin": False,
+    }
 
 
 def _auth_enabled() -> bool:
@@ -86,11 +115,77 @@ def _expected_credentials() -> tuple[str, str]:
     return user, password
 
 
-def _is_logged_in() -> bool:
-    if not _auth_enabled():
-        return True
+def _load_access_directory() -> dict[str, Any] | None:
+    if not bunny_readable():
+        return None
+    now = time.time()
+    if _access_cache["data"] is not None and (now - float(_access_cache["at"])) < _CACHE_TTL_SEC:
+        return _access_cache["data"]  # type: ignore[return-value]
+    data = download_json(ACCESS_KEY)
+    _access_cache["at"] = now
+    _access_cache["data"] = data if isinstance(data, dict) else None
+    return _access_cache["data"]  # type: ignore[return-value]
+
+
+def _env_super_actor() -> dict[str, Any]:
     user, _password = _expected_credentials()
-    return bool(session.get("auth") is True and session.get("user") == user)
+    return {
+        "userId": "env_super",
+        "username": user,
+        "displayName": user,
+        "isActive": True,
+        "roleId": "role_super_admin",
+        "role": {
+            "roleId": "role_super_admin",
+            "name": "Super Admin",
+            "unrestricted": True,
+            "permissions": [item["key"] for item in permission_catalog()],
+        },
+        "grants": [],
+        "denies": [],
+    }
+
+
+def _current_actor() -> dict[str, Any] | None:
+    if not _auth_enabled():
+        return _env_super_actor()
+    if session.get("auth") is not True:
+        return None
+    directory = _load_access_directory()
+    username = str(session.get("user") or "")
+    user_id = session.get("userId")
+    if directory:
+        raw = directory_user(directory, user_id=str(user_id)) if user_id and user_id != "env_super" else None
+        if raw is None and username:
+            raw = directory_user(directory, username=username)
+        if raw is not None:
+            if not raw.get("isActive"):
+                return None
+            return actor_from_directory(directory, user_id=str(raw.get("userId") or ""))
+    env_user, _password = _expected_credentials()
+    if username == env_user:
+        return _env_super_actor()
+    return None
+
+
+def _is_logged_in() -> bool:
+    return _current_actor() is not None
+
+
+def _visible_status() -> dict[str, Any]:
+    payload = _load_status() or _empty_payload()
+    return filter_camera_status_payload(payload, _current_actor())
+
+
+def _camera_forbidden(device_id: str, permission: str = "cameras.view"):
+    actor = _current_actor()
+    if not has_permission(actor, permission):
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+    payload = _load_status() or {}
+    cam = next((c for c in payload.get("cameras") or [] if c.get("deviceId") == device_id), None)
+    if cam is None or not camera_allowed(actor, cam):
+        return jsonify({"ok": False, "error": "not found"}), 404
+    return None
 
 
 def _wants_html() -> bool:
@@ -199,17 +294,21 @@ def login():
 def login_submit():
     if not _auth_enabled():
         return redirect("/camera-status")
-    expected_user, expected_password = _expected_credentials()
     username = (request.form.get("username") or "").strip()
     password = request.form.get("password") or ""
     next_url = _safe_next(request.form.get("next") or request.args.get("next"))
-    if secrets.compare_digest(username, expected_user) and secrets.compare_digest(
-        password, expected_password
-    ):
+    directory = _load_access_directory()
+    actor = authenticate_directory(directory, username, password)
+    if actor is None and not (directory and directory_user(directory, username=username)):
+        expected_user, expected_password = _expected_credentials()
+        if secrets.compare_digest(username, expected_user) and secrets.compare_digest(password, expected_password):
+            actor = _env_super_actor()
+    if actor:
         session.clear()
         session.permanent = True
         session["auth"] = True
-        session["user"] = expected_user
+        session["user"] = actor["username"]
+        session["userId"] = actor["userId"]
         return redirect(next_url)
     return (
         render_template(
@@ -237,11 +336,13 @@ def index():
 @app.get("/camera-status")
 @_auth_required
 def camera_status_page():
-    payload = _load_status() or _empty_payload()
+    payload = _visible_status()
     worker = payload.get("worker") or {}
     last_cycle = worker.get("last_cycle") or {}
     published = payload.get("publishedAt") or payload.get("updatedAt")
     username = current_username(session.get("user"))
+    allowed = {c.get("deviceId") for c in (payload.get("cameras") or [])}
+    favorites = [item for item in get_favorites(username, prefer_bunny=True) if item in allowed]
     boot = {
         "cameras": payload.get("cameras") or [],
         "nvrs": payload.get("nvrs") or [],
@@ -255,7 +356,7 @@ def camera_status_page():
         "publishedAt": published,
         "liveBridgeEnabled": cloud_live_bridge_ready(),
         "username": username,
-        "favorites": get_favorites(username, prefer_bunny=True),
+        "favorites": favorites,
     }
     return render_template(
         "camera_status.html",
@@ -274,24 +375,22 @@ def camera_status_page():
 @app.get("/api/favorites")
 @_auth_required
 def api_favorites_get():
-    username = current_username(session.get("user") or request.args.get("user"))
-    return jsonify(
-        {
-            "ok": True,
-            "user": username,
-            "favorites": get_favorites(username, prefer_bunny=True),
-        }
-    )
+    username = current_username(session.get("user"))
+    allowed = {c.get("deviceId") for c in (_visible_status().get("cameras") or [])}
+    favorites = [item for item in get_favorites(username, prefer_bunny=True) if item in allowed]
+    return jsonify({"ok": True, "user": username, "favorites": favorites})
 
 
 @app.put("/api/favorites")
 @_auth_required
 def api_favorites_put():
     body = request.get_json(silent=True) or {}
-    username = current_username(session.get("user") or body.get("user"))
+    username = current_username(session.get("user"))
+    allowed = {c.get("deviceId") for c in (_visible_status().get("cameras") or [])}
+    raw = body.get("favorites") if isinstance(body.get("favorites"), list) else []
     ids = set_favorites(
         username,
-        body.get("favorites") if isinstance(body.get("favorites"), list) else [],
+        [item for item in raw if str(item) in allowed],
         sync_bunny=True,
         prefer_bunny=True,
     )
@@ -302,10 +401,13 @@ def api_favorites_put():
 @_auth_required
 def api_favorites_toggle():
     body = request.get_json(silent=True) or {}
-    username = current_username(session.get("user") or body.get("user"))
+    username = current_username(session.get("user"))
     device_id = str(body.get("deviceId") or "").strip()
     if not device_id:
         return jsonify({"ok": False, "error": "deviceId required"}), 400
+    denied = _camera_forbidden(device_id)
+    if denied:
+        return denied
     ids, favourited = toggle_favorite(
         username, device_id, sync_bunny=True, prefer_bunny=True
     )
@@ -323,7 +425,7 @@ def api_favorites_toggle():
 @app.get("/api/camera-status")
 @_auth_required
 def api_camera_status():
-    payload = _load_status() or _empty_payload()
+    payload = _visible_status()
     payload["remoteMode"] = True
     payload["liveBridgeEnabled"] = cloud_live_bridge_ready()
     if not payload.get("updatedAt"):
@@ -334,6 +436,9 @@ def api_camera_status():
 @app.get("/api/cameras/<device_id>/health-history")
 @_auth_required
 def api_camera_health_history(device_id: str):
+    denied = _camera_forbidden(device_id)
+    if denied:
+        return denied
     hist = _load_history(device_id)
     if not hist:
         status = _load_status() or {}
@@ -351,6 +456,63 @@ def api_camera_health_history(device_id: str):
             }
         )
     return jsonify({"ok": True, **hist})
+
+
+@app.get("/devices/<device_id>/history")
+@_auth_required
+def devices_history(device_id: str):
+    denied = _camera_forbidden(device_id)
+    if denied:
+        if _wants_html():
+            return render_template("forbidden.html"), denied[1]
+        return denied
+    status = _visible_status()
+    cam = next(
+        (c for c in status.get("cameras") or [] if c.get("deviceId") == device_id),
+        None,
+    )
+    hist = _load_history(device_id) or {}
+    items = list(hist.get("items") or []) if isinstance(hist, dict) else []
+    if not cam and not items:
+        return (
+            render_template(
+                "device_history.html",
+                device={"deviceId": device_id, "deviceName": device_id, "status": "UNKNOWN"},
+                history={"items": []},
+                items=[],
+                last_working=None,
+                online_count=0,
+                offline_count=0,
+                preview_count=0,
+                remote_mode=True,
+            ),
+            404,
+        )
+    device = {
+        "deviceId": device_id,
+        "deviceName": (cam or {}).get("deviceName") or (cam or {}).get("displayName") or hist.get("deviceName") or device_id,
+        "ipAddress": (cam or {}).get("ipAddress") or hist.get("ipAddress"),
+        "nvrId": (cam or {}).get("nvrId") or hist.get("nvrId"),
+        "cameraChannel": (cam or {}).get("cameraChannel") or (cam or {}).get("groupChannel"),
+        "nvrChannel": (cam or {}).get("nvrChannel"),
+        "status": (cam or {}).get("networkStatus") or (cam or {}).get("status") or "UNKNOWN",
+        "networkStatus": (cam or {}).get("networkStatus"),
+    }
+    online_count = sum(1 for c in items if c.get("overallStatus") == "ONLINE")
+    offline_count = sum(1 for c in items if c.get("overallStatus") == "OFFLINE")
+    preview_count = sum(1 for c in items if c.get("overallStatus") == "PREVIEW_ERROR")
+    last_working = next((c for c in items if c.get("overallStatus") == "ONLINE"), None)
+    return render_template(
+        "device_history.html",
+        device=device,
+        history={"items": items, **({k: v for k, v in hist.items() if k != "items"} if isinstance(hist, dict) else {})},
+        items=items,
+        last_working=last_working,
+        online_count=online_count,
+        offline_count=offline_count,
+        preview_count=preview_count,
+        remote_mode=True,
+    )
 
 
 def _image_for_check(device_id: str, check_id: str, image_path: str | None = None) -> bytes | None:
@@ -389,6 +551,9 @@ def _jpeg_response(data: bytes, *, immutable: bool = False, max_age: int = 86400
 @app.get("/api/cameras/<device_id>/health-checks/<check_id>/image.jpg")
 @_auth_required
 def api_camera_health_check_image(device_id: str, check_id: str):
+    denied = _camera_forbidden(device_id)
+    if denied:
+        return Response(status=404)
     hist = _load_history(device_id) or {}
     image_path = None
     for item in hist.get("items") or []:
@@ -409,7 +574,10 @@ def api_camera_health_check_image(device_id: str, check_id: str):
 @app.get("/api/cameras/<device_id>/snapshot.jpg")
 @_auth_required
 def api_camera_snapshot(device_id: str):
-    status = _load_status() or {}
+    denied = _camera_forbidden(device_id)
+    if denied:
+        return Response(status=404)
+    status = _visible_status()
     cam = next(
         (c for c in status.get("cameras") or [] if c.get("deviceId") == device_id),
         None,
@@ -442,6 +610,9 @@ def api_camera_snapshot(device_id: str):
 @_auth_required
 def api_camera_live_frame(device_id: str):
     """Proxy one live JPEG from the on-site bridge (Cloudflare Tunnel)."""
+    denied = _camera_forbidden(device_id, "cameras.live")
+    if denied:
+        return Response(status=404 if denied[1] == 404 else 403)
     if not cloud_live_bridge_ready():
         return Response("Live bridge not configured", status=503)
     url = f"{live_bridge_url()}{bridge_live_path(device_id)}"

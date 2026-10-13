@@ -11,6 +11,12 @@ from src.db import connect, init_db, row_to_dict, utc_now, utc_now_dt, parse_utc
 CHECK_KINDS = ("MANDATORY", "RANDOM", "MANUAL", "CONFIRMATION")
 PREVIEW_STATUSES = ("AVAILABLE", "UNAVAILABLE", "SKIPPED")
 
+# Prefix written into healthChecks.previewError when a capture is byte-identical
+# to the stored snapshot (a live camera's OSD ticks, so identical bytes = stuck
+# encoder). camera_status.frozen_map() matches on this prefix.
+FROZEN_FRAME_PREFIX = "frame identical to previous capture"
+WARNING_TYPES = ("MISSED_CHECK", "WORKER_STALE", "FROZEN_FEED")
+
 _HISTORY_COLUMNS = (
     ("checkKind", "TEXT DEFAULT 'MANDATORY'"),
     ("previewStatus", "TEXT"),
@@ -41,7 +47,7 @@ def ensure_phase3_schema() -> None:
                 createdAt TEXT NOT NULL,
                 resolvedAt TEXT,
                 CHECK (status IN ('OPEN','RESOLVED')),
-                CHECK (warningType IN ('MISSED_CHECK','WORKER_STALE'))
+                CHECK (warningType IN ('MISSED_CHECK','WORKER_STALE','FROZEN_FEED'))
             )
             """
         )
@@ -320,6 +326,124 @@ def resolve_missed_check_warnings(device_id: str) -> int:
             UPDATE monitoringWarnings
             SET status = 'RESOLVED', resolvedAt = ?
             WHERE deviceId = ? AND warningType = 'MISSED_CHECK' AND status = 'OPEN'
+            """,
+            (utc_now(), device_id),
+        )
+        conn.commit()
+        return cur.rowcount
+
+
+def _ensure_frozen_warning_type() -> None:
+    """Migrate pre-existing monitoringWarnings tables to allow FROZEN_FEED.
+
+    SQLite cannot ALTER a CHECK constraint, so rebuild the table once,
+    preserving all rows. Fresh databases already include the type.
+    """
+    ensure_phase3_schema()
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE name = 'monitoringWarnings'"
+        ).fetchone()
+    sql = (row["sql"] if row else "") or ""
+    if "FROZEN_FEED" in sql:
+        return
+    with connect() as conn:
+        conn.execute("ALTER TABLE monitoringWarnings RENAME TO monitoringWarnings_legacy")
+        conn.execute(
+            """
+            CREATE TABLE monitoringWarnings (
+                warningId TEXT PRIMARY KEY,
+                deviceId TEXT,
+                warningType TEXT NOT NULL,
+                message TEXT,
+                status TEXT NOT NULL DEFAULT 'OPEN',
+                createdAt TEXT NOT NULL,
+                resolvedAt TEXT,
+                CHECK (status IN ('OPEN','RESOLVED')),
+                CHECK (warningType IN ('MISSED_CHECK','WORKER_STALE','FROZEN_FEED'))
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO monitoringWarnings
+                (warningId, deviceId, warningType, message, status, createdAt, resolvedAt)
+            SELECT warningId, deviceId, warningType, message, status, createdAt, resolvedAt
+            FROM monitoringWarnings_legacy
+            """
+        )
+        conn.execute("DROP TABLE monitoringWarnings_legacy")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_warn_open ON monitoringWarnings(status, warningType)"
+        )
+        conn.commit()
+
+
+def has_open_frozen_warning(device_id: str) -> bool:
+    _ensure_frozen_warning_type()
+    with connect() as conn:
+        row = conn.execute(
+            """
+            SELECT warningId FROM monitoringWarnings
+            WHERE deviceId = ? AND warningType = 'FROZEN_FEED' AND status = 'OPEN'
+            LIMIT 1
+            """,
+            (device_id,),
+        ).fetchone()
+    return row is not None
+
+
+def open_frozen_warning(device_id: str, message: str) -> dict[str, Any]:
+    """Open (or refresh) a FROZEN_FEED warning. Caller checks has_open_* first
+    to decide whether this is a new incident worth notifying about."""
+    _ensure_frozen_warning_type()
+    with connect() as conn:
+        existing = conn.execute(
+            """
+            SELECT * FROM monitoringWarnings
+            WHERE deviceId = ? AND warningType = 'FROZEN_FEED' AND status = 'OPEN'
+            ORDER BY createdAt DESC LIMIT 1
+            """,
+            (device_id,),
+        ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE monitoringWarnings SET message = ? WHERE warningId = ?",
+                (message, existing["warningId"]),
+            )
+            conn.commit()
+            return row_to_dict(
+                conn.execute(
+                    "SELECT * FROM monitoringWarnings WHERE warningId = ?",
+                    (existing["warningId"],),
+                ).fetchone()
+            )  # type: ignore
+        wid = f"warn_{uuid.uuid4().hex[:10]}"
+        now = utc_now()
+        conn.execute(
+            """
+            INSERT INTO monitoringWarnings
+            (warningId, deviceId, warningType, message, status, createdAt)
+            VALUES (?, ?, 'FROZEN_FEED', ?, 'OPEN', ?)
+            """,
+            (wid, device_id, message, now),
+        )
+        conn.commit()
+        return row_to_dict(
+            conn.execute(
+                "SELECT * FROM monitoringWarnings WHERE warningId = ?", (wid,)
+            ).fetchone()
+        )  # type: ignore
+
+
+def resolve_frozen_warnings(device_id: str) -> int:
+    _ensure_frozen_warning_type()
+    with connect() as conn:
+        cur = conn.execute(
+            """
+            UPDATE monitoringWarnings
+            SET status = 'RESOLVED', resolvedAt = ?
+            WHERE deviceId = ? AND warningType = 'FROZEN_FEED' AND status = 'OPEN'
             """,
             (utc_now(), device_id),
         )

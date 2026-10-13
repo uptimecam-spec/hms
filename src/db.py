@@ -91,6 +91,7 @@ def init_db() -> None:
             ("rtspUrl", "TEXT"),
             ("nvrHost", "TEXT"),
             ("nvrChannel", "INTEGER"),
+            ("frameFrozenAt", "TEXT"),
         ):
             _ensure_column(conn, "devices", col, decl)
 
@@ -385,6 +386,21 @@ def apply_rtsp_overrides_from_yaml() -> int:
             applied += 1
         conn.commit()
     return applied
+
+
+def set_frame_frozen(device_id: str, frozen_at: str | None) -> None:
+    """Persist frozen-feed state on the device row.
+
+    A column (not "latest health row") so old worker builds writing clean rows
+    can neither set nor clear it — only new-code checks own this flag.
+    """
+    init_db()
+    with connect() as conn:
+        conn.execute(
+            "UPDATE devices SET frameFrozenAt = ?, updatedAt = ? WHERE deviceId = ?",
+            (frozen_at, utc_now(), device_id),
+        )
+        conn.commit()
 
 
 def set_device_status(device_id: str, status: str) -> None:

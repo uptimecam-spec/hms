@@ -58,7 +58,11 @@ def _enrich_cameras_with_images(
                 cam["latestImagePath"] = first_img.get("imagePath")
                 # Stable cache-buster for snapshot URLs until the next capture.
                 cam["previewVersion"] = first_img["id"]
-                display = display_status_for(cam.get("networkStatus") or "UNKNOWN", "AVAILABLE")
+                frozen = bool(cam.get("frameFrozen"))
+                cam["frameFrozen"] = frozen
+                display = display_status_for(
+                    cam.get("networkStatus") or "UNKNOWN", "AVAILABLE", frozen=frozen
+                )
                 cam["displayStatus"] = display
                 cam["displayStatusLabel"] = status_label(display)
             else:
@@ -76,6 +80,7 @@ def _enrich_cameras_with_images(
                 "latestImageCheckId",
                 "latestImagePath",
                 "previewVersion",
+                "frameFrozen",
                 "displayStatus",
                 "displayStatusLabel",
             ):
@@ -83,19 +88,36 @@ def _enrich_cameras_with_images(
                     cam[key] = src[key]
 
     cameras = payload.get("cameras") or []
-    online = sum(1 for c in cameras if c.get("networkStatus") == "ONLINE")
+    online = sum(
+        1
+        for c in cameras
+        if c.get("networkStatus") == "ONLINE" and not bool(c.get("frameFrozen"))
+    )
     offline = sum(1 for c in cameras if c.get("networkStatus") == "OFFLINE")
+    frozen = sum(
+        1
+        for c in cameras
+        if c.get("networkStatus") == "ONLINE" and bool(c.get("frameFrozen"))
+    )
     preview_unavailable = sum(
         1
         for c in cameras
-        if c.get("networkStatus") == "ONLINE" and c.get("previewStatus") == "UNAVAILABLE"
+        if c.get("displayStatus") == "ONLINE_PREVIEW_UNAVAILABLE"
     )
     summary = payload.setdefault("summary", {})
     summary["total"] = len(cameras)
     summary["online"] = online
     summary["offline"] = offline
+    summary["frozen"] = frozen
     summary["previewUnavailable"] = preview_unavailable
-    summary["unknown"] = len(cameras) - online - offline
+    summary["unknown"] = len(cameras) - online - offline - frozen
+    for nvr in payload.get("nvrs") or []:
+        nvr_cams = nvr.get("cameras") or []
+        nvr["frozen"] = sum(
+            1
+            for c in nvr_cams
+            if c.get("networkStatus") == "ONLINE" and bool(c.get("frameFrozen"))
+        )
     return histories
 
 
@@ -140,6 +162,12 @@ def publish_dashboard_snapshot(*, worker: dict[str, Any] | None = None) -> dict[
         len(histories),
         published_at,
     )
+    try:
+        from src.access_control import publish_access_directory
+
+        publish_access_directory()
+    except Exception:
+        log.exception("Access directory publish failed")
     return {
         "ok": True,
         "cameras": len(devices),
